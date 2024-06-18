@@ -446,9 +446,15 @@ class SAMGraspFusion(nn.Module):
                 # Reshape shape (batch, hidden)
                 return tensor[:, -1, :]
 
-        self.lstm = nn.Sequential(nn.LSTM(input_size=512, hidden_size=512, 
-                                          num_layers=2, batch_first=True), 
-                                extract_tensor()
+        # self.lstm = nn.Sequential(nn.LSTM(input_size=512, hidden_size=512, 
+        #                                   num_layers=2, batch_first=True), 
+        #                         extract_tensor()
+        #                         )
+        self.lstm = nn.Sequential(nn.Linear(512, 256),
+                                nn.ReLU(),
+                                nn.Linear(256, width),
+                                nn.ReLU(),
+                                nn.Linear(width, width)
                                 )
 
     def encode_grasp(self, x):
@@ -467,7 +473,10 @@ class SAMGraspFusion(nn.Module):
         # return torch.cat((color_depth_feat, grasp_feat), dim=-1)
         # return color_depth_feat, grasp_feat
 
-        fusion_features = color_depth_feat.unsqueeze(0) * grasp_feat
+        # print(color_depth_feat.shape, 'color_depth_feat', grasp_feat.shape, 'grasp_feat')       
+        # fusion_features = color_depth_feat.unsqueeze(0) + grasp_feat
+        fusion_features = color_depth_feat + grasp_feat
+        # print(fusion_features.shape, 'fusion_features')
 
         return fusion_features.permute(1, 0, 2)
 

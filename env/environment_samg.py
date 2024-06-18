@@ -334,6 +334,13 @@ class Environment:
         )
         pb.changeConstraint(c, gearRatio=-1, erp=0.8, maxForce=1000)
 
+    def get_tcp_pos(self):
+        current_coordinate = pb.getLinkState(self.ur5e, self.ur5e_ee_id, computeForwardKinematics=True)
+        current_pos = list(current_coordinate[0])
+        current_orn = list(pb.getEulerFromQuaternion(current_coordinate[1]))
+        tcp_pos = current_pos + current_orn
+        return np.array(tcp_pos)
+
     def step(self, pose=None):
         """Execute action with specified primitive.
 
@@ -343,19 +350,43 @@ class Environment:
         Returns:
             obs, done
         """
+        # current_pos = self.get_tcp_pos()
+        # current_pos[0] = 0.25
+        # current_pos[1] = 0
+        # current_pos[2] -= 0.45
+        # target_orn = pb.getQuaternionFromEuler([0.15 * np.pi, np.pi / 2, 0])
+        # # move 
+        # self.move_ee_pose((current_pos[:3], target_orn), 0.01)
+
+        # for i in range(100):
+        #     pb.stepSimulation()
+        
+        # current_pos = self.get_tcp_pos()
+        # current_pos[0] += 0.1
+        # current_pos[1] += 0.1
+        # target_orn = pb.getQuaternionFromEuler([0.15 * np.pi, np.pi / 2, 0])
+        # self.move_ee_pose((current_pos[:3], target_orn), 0.01)
+
+        # for i in range(100):
+        #     pb.stepSimulation()
+        
+        # import time
+        # time.sleep(200)
+
         done = False
         if pose is not None:
             success, grasped_obj_id, pos_dist = self.grasp(pose)
             # Grasping fails
             if not success:
-                reward = -1
+                reward = 0
             else:
-                if grasped_obj_id in self.target_obj_ids:
-                    reward = 2
-                    done = True
-                else:
-                    max_pos_dist = np.sqrt((WORKSPACE_LIMITS[0][1]-WORKSPACE_LIMITS[0][0]) ** 2 + (WORKSPACE_LIMITS[1][1]-WORKSPACE_LIMITS[1][0]) ** 2)
-                    reward = - pos_dist / max_pos_dist
+                reward = 1
+                # if grasped_obj_id in self.target_obj_ids:
+                #     reward = 2
+                #     done = True
+                # else:
+                #     max_pos_dist = np.sqrt((WORKSPACE_LIMITS[0][1]-WORKSPACE_LIMITS[0][0]) ** 2 + (WORKSPACE_LIMITS[1][1]-WORKSPACE_LIMITS[1][0]) ** 2)
+                #     reward = - pos_dist / max_pos_dist
 
         # Step simulator asynchronously until objects settle.
         while not self.is_static:
@@ -431,85 +462,109 @@ class Environment:
     def add_objects(self, num_obj, workspace_limits):
         """Randomly dropped objects to the workspace"""
         mesh_list = glob.glob("assets/simplified_objects/*.urdf")
+        # print(mesh_list)
+        # quit(0)
 
         # get target object
-        target_mesh_list = []
-        for target_obj in self.target_obj_lst:
-            target_mesh_file = "assets/simplified_objects/" + target_obj + ".urdf"
-            target_mesh_list.append(target_mesh_file)
-        for obj in self.target_obj_dir:
-            obj_mesh_file = "assets/simplified_objects/" + obj + ".urdf"
-            mesh_list.remove(obj_mesh_file)
+        # target_mesh_list = []
+        # for target_obj in self.target_obj_lst:
+        #     target_mesh_file = "assets/simplified_objects/" + target_obj + ".urdf"
+        #     target_mesh_list.append(target_mesh_file)
+        # for obj in self.target_obj_dir:
+        #     obj_mesh_file = "assets/simplified_objects/" + obj + ".urdf"
+        #     mesh_list.remove(obj_mesh_file)
 
-        obj_mesh_ind = np.random.randint(0, len(mesh_list), size=num_obj-len(self.target_obj_lst))
+        # np.random.seed(0)
+        # obj_mesh_ind = np.random.randint(0, len(mesh_list), size=num_obj-len(self.target_obj_lst))
+        # print(obj_mesh_ind)
+        # obj_mesh_ind = ['005', '013', '009', '022', '014',
+        #                 '006', '007', '022', '057', '039', 
+        #                 '029', '026', '018', '058', '032'
+        #                 ]
+        
+        obj_mesh_ind = ['002', '058', '013', '022', '039',
+                        '021', '039', '022', '057', '020', 
+                        '039', '058'
+                        ]
 
         # Add each object to robot workspace at x,y location and orientation (random or pre-loaded)
         body_ids = []
         self.target_obj_ids = []
 
         with open("cases/" + "temp.txt", "w") as out_file:
-            out_file.write("%s\n" % self.lang_goal)
+            # out_file.write("%s\n" % self.lang_goal)
             # add target objects
-            for target_mesh_file in target_mesh_list:
-                drop_x = (
-                    (workspace_limits[0][1] - workspace_limits[0][0] - 0.2) * np.random.random_sample()
-                    + workspace_limits[0][0]
-                    + 0.1
-                )
-                drop_y = (
-                    (workspace_limits[1][1] - workspace_limits[1][0] - 0.2) * np.random.random_sample()
-                    + workspace_limits[1][0]
-                    + 0.1
-                )
-                object_position = [drop_x, drop_y, 0.2]
-                object_orientation = [
-                    2 * np.pi * np.random.random_sample(),
-                    2 * np.pi * np.random.random_sample(),
-                    2 * np.pi * np.random.random_sample(),
-                ]
-                body_id = pb.loadURDF(
-                    target_mesh_file, object_position, pb.getQuaternionFromEuler(object_orientation)
-                )
-                # pb.changeVisualShape(body_id, -1, rgbaColor=object_color)
-                body_ids.append(body_id)
-                self.target_obj_ids.append(body_id)
-                self.add_object_id(body_id)
-                self.wait_static()
+            # for target_mesh_file in target_mesh_list:
+            #     drop_x = (
+            #         (workspace_limits[0][1] - workspace_limits[0][0] - 0.2) * np.random.random_sample()
+            #         + workspace_limits[0][0]
+            #         + 0.1
+            #     )
+            #     drop_y = (
+            #         (workspace_limits[1][1] - workspace_limits[1][0] - 0.2) * np.random.random_sample()
+            #         + workspace_limits[1][0]
+            #         + 0.1
+            #     ),
+            #     object_position = [drop_x, drop_y, 0.2]
+            #     object_orientation = [
+            #         2 * np.pi * np.random.random_sample(),
+            #         2 * np.pi * np.random.random_sample(),
+            #         2 * np.pi * np.random.random_sample(),
+            #     ]
+            #     body_id = pb.loadURDF(
+            #         target_mesh_file, object_position, pb.getQuaternionFromEuler(object_orientation)
+            #     )
+            #     # pb.changeVisualShape(body_id, -1, rgbaColor=object_color)
+            #     body_ids.append(body_id)
+            #     self.target_obj_ids.append(body_id)
+            #     self.add_object_id(body_id)
+            #     self.wait_static()
 
-                out_file.write(
-                    "%s %.18e %.18e %.18e %.18e %.18e %.18e\n"
-                    % (
-                        target_mesh_file,
-                        object_position[0],
-                        object_position[1],
-                        object_position[2],
-                        object_orientation[0],
-                        object_orientation[1],
-                        object_orientation[2],
-                    )
-                )
+            #     out_file.write(
+            #         "%s %.18e %.18e %.18e %.18e %.18e %.18e\n"
+            #         % (
+            #             target_mesh_file,
+            #             object_position[0],
+            #             object_position[1],
+            #             object_position[2],
+            #             object_orientation[0],
+            #             object_orientation[1],
+            #             object_orientation[2],
+            #         )
+            #     )
 
+            # all_drop_pos = []
+            # all_drop_orn = []
+            drop_data = np.load("assets/drop.npz")
             # add other objects
             for object_idx in range(len(obj_mesh_ind)):
-                curr_mesh_file = mesh_list[obj_mesh_ind[object_idx]]
-                drop_x = (
-                    (workspace_limits[0][1] - workspace_limits[0][0] - 0.2) * np.random.random_sample()
-                    + workspace_limits[0][0]
-                    + 0.1
-                )
-                drop_y = (
-                    (workspace_limits[1][1] - workspace_limits[1][0] - 0.2) * np.random.random_sample()
-                    + workspace_limits[1][0]
-                    + 0.1
-                )
-                object_position = [drop_x, drop_y, 0.2]
-                object_orientation = [
-                    2 * np.pi * np.random.random_sample(),
-                    2 * np.pi * np.random.random_sample(),
-                    2 * np.pi * np.random.random_sample(),
-                ]
+                # curr_mesh_file = mesh_list[obj_mesh_ind[object_idx]]
+                curr_mesh_file = obj_mesh_ind[object_idx]
+                # drop_x = (
+                #     (workspace_limits[0][1] - workspace_limits[0][0] - 0.2) * np.random.random_sample()
+                #     + workspace_limits[0][0]
+                #     + 0.1
+                # )
+                # drop_y = (
+                #     (workspace_limits[1][1] - workspace_limits[1][0] - 0.2) * np.random.random_sample()
+                #     + workspace_limits[1][0]
+                #     + 0.1
+                # )
+                # object_position = [drop_x, drop_y, 0.15]
+                # object_orientation = [
+                #     2 * np.pi * np.random.random_sample(),
+                #     2 * np.pi * np.random.random_sample(),
+                #     2 * np.pi * np.random.random_sample(),
+                # ]
+                # all_drop_pos.append(object_position)
+                # all_drop_orn.append(object_orientation)
+
+                object_position = drop_data['pos'][object_idx]
+                object_orientation = drop_data['orn'][object_idx]
+
                 body_id = pb.loadURDF(
-                    curr_mesh_file, object_position, pb.getQuaternionFromEuler(object_orientation)
+                    'assets/simplified_objects/'+curr_mesh_file+'.urdf', 
+                    object_position, pb.getQuaternionFromEuler(object_orientation)
                 )
                 body_ids.append(body_id)
                 self.add_object_id(body_id)
@@ -528,6 +583,8 @@ class Environment:
                     )
                 )
 
+            # np.savez("assets/drop.npz", pos=np.array(all_drop_pos), orn=np.array(all_drop_orn))
+            # quit(0)
 
         return body_ids, True
 
@@ -751,16 +808,16 @@ class Environment:
             
             if success: # get grasp object id
                 max_height = -0.0001
-                for i in self.obj_ids["rigid"]:
-                    height = self.info[i][0][2]
-                    if height >= max_height:
-                        grasped_obj_id = i
-                        max_height = height
-                pos_dists = []
-                for target_obj_id in self.target_obj_ids:
-                    pos_dist = np.linalg.norm(np.array(self.info[grasped_obj_id][0]) - np.array(self.info[target_obj_id][0]))
-                    pos_dists.append(pos_dist)
-                min_pos_dist = min(pos_dists)
+                # for i in self.obj_ids["rigid"]:
+                #     height = self.info[i][0][2]
+                #     if height >= max_height:
+                #         grasped_obj_id = i
+                #         max_height = height
+                # pos_dists = []
+                # for target_obj_id in self.target_obj_ids:
+                #     pos_dist = np.linalg.norm(np.array(self.info[grasped_obj_id][0]) - np.array(self.info[target_obj_id][0]))
+                #     pos_dists.append(pos_dist)
+                # min_pos_dist = min(pos_dists)
 
         if success:
             success = self.move_joints(self.drop_joints1)

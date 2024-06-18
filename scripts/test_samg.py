@@ -6,7 +6,7 @@ import os
 
 import utils
 from env.constants import WORKSPACE_LIMITS
-from env.environment_sim import Environment
+from env.environment_samg import Environment
 from logger import Logger
 from grasp_detetor import Graspnet
 from models.samg_sac import SAMG
@@ -134,10 +134,9 @@ if __name__ == "__main__":
     resnet.to(device=args.device)
     # build agent
     agent = SAMG(grasp_dim=7, args=args)
-    if args.load_model:
-        logger.load_checkpoint(agent, 
+    logger.load_checkpoint(agent, 
                             #    args.model_path,
-                               'logs/2024-06-18-06-05-16-train/checkpoints/sac_checkpoint_2024-06-18_15-30-34_360.pth', 
+                               '/home/birl/code/SAMG/logs/2024-06-18-14-31-58-train/checkpoints/sac_checkpoint_2024-06-18_15-42-35_71.pth', 
                                args.evaluate)
         
     if os.path.exists(args.testing_case_dir):
@@ -213,7 +212,7 @@ if __name__ == "__main__":
                 episode_reward += reward
                 print("\033[034m Episode: {}, step: {}, reward: {}\033[0m".format(episode, episode_steps, round(reward, 2)))
 
-                if episode_steps == 30:
+                if episode_steps == 15:
                     break
 
             

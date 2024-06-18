@@ -12,7 +12,7 @@ class SAMG(object):
         self.device = args.device
 
         # state-action feature
-        self.smag_fusion = SAMGraspFusion(grasp_dim, args.width, self.device).to(device=self.device)
+        self.samg_fusion = SAMGraspFusion(grasp_dim, args.width, self.device).to(device=self.device)
         self.feature_optim = Adam(self.smag_fusion.parameters(), lr=args.lr)
 
         # critic
@@ -47,7 +47,7 @@ class SAMG(object):
                     v.requires_grad = False # fix parameters
                     # print(v.requires_grad)
 
-            self.smag_fusion.train()
+            self.samg_fusion.train()
             self.critic.train()
             self.critic_target.train()
             self.policy.train()

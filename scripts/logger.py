@@ -130,7 +130,7 @@ class Logger:
         if ckpt_path is not None:
             checkpoint = torch.load(ckpt_path)
 
-            model.vilg_fusion.load_state_dict(checkpoint['feature_state_dict'])
+            model.samg_fusion.load_state_dict(checkpoint['feature_state_dict'])
             model.policy.load_state_dict(checkpoint['policy_state_dict'])
             model.critic.load_state_dict(checkpoint['critic_state_dict'])
             model.critic_target.load_state_dict(checkpoint['critic_target_state_dict'])
@@ -139,12 +139,12 @@ class Logger:
 
             
             if evaluate:
-                model.vilg_fusion.eval()
+                model.samg_fusion.eval()
                 model.policy.eval()
                 model.critic.eval()
                 model.critic_target.eval()
             else:
-                model.vilg_fusion.train()
+                model.samg_fusion.train()
                 model.policy.train()
                 model.critic.train()
                 model.critic_target.train()

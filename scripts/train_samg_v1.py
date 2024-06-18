@@ -1,6 +1,3 @@
-import cv2
-import time
-import matplotlib.pyplot as plt
 import argparse
 import numpy as np
 import random
@@ -14,9 +11,7 @@ from logger import Logger
 from grasp_detetor import Graspnet
 from models.replay_memory import SAMGReplayMemory
 from models.samg_sac import SAMG
-from sam_hq.segment_anything import sam_model_registry, SamPredictor
-from torchvision.models import resnet18
-import torch.nn as nn
+
 
 
 def parse_args():
@@ -30,12 +25,12 @@ def parse_args():
     parser.add_argument('--evaluate', dest='evaluate', action='store_true', default=False)
     parser.add_argument('--load_model', dest='load_model', action='store_true', default=False)
     parser.add_argument('--model_path', action='store', type=str, default='')
-    parser.add_argument('--save_model_interval', type=int, default=1, metavar='N',
+    parser.add_argument('--save_model_interval', type=int, default=500, metavar='N',
                         help='episode interval to save model')
 
-    parser.add_argument('--num_obj', action='store', type=int, default=12)
+    parser.add_argument('--num_obj', action='store', type=int, default=15)
     parser.add_argument('--num_episode', action='store', type=int, default=5000)
-    parser.add_argument('--max_episode_step', type=int, default=15)
+    parser.add_argument('--max_episode_step', type=int, default=8)
 
     # Transformer paras
     parser.add_argument('--patch_size', type=int, default=32)
@@ -62,67 +57,12 @@ def parse_args():
                         help='model updates per simulator step (default: 1)')
     parser.add_argument('--target_update_interval', type=int, default=1, metavar='N',
                         help='Value target update per no. of updates per step (default: 1)')
-    parser.add_argument('--replay_size', type=int, default=1024, metavar='N',
+    parser.add_argument('--replay_size', type=int, default=512, metavar='N',
                         help='size of replay buffer (default: 512)')
 
     args = parser.parse_args()
     return args
 
-
-def sam_resnet_fusion(sam, resnet, color_img, depth_img, device):
-    with torch.no_grad():
-        depth_img = torch.as_tensor(depth_img, dtype=torch.float32).unsqueeze(0).to(device)
-        
-        sam.set_image(color_img)
-
-        # center_points = []
-        # num_grids = 40
-        # x = np.linspace(0, 224, num_grids).astype(int)
-        # y = np.linspace(0, 224, num_grids).astype(int)
-
-        # center_points = np.array([[i, j] for i in x for j in y])
-
-        # for i in range(num_grids):
-        #     for j in range(num_grids):
-        #         center_points.append([interval + interval * i, interval + interval * j])
-        # center_points = np.array(center_points)
-
-        segs = []
-        for idx, num_grids in enumerate([16, 32, 64]):
-            center_points = []
-
-            interval = 224 // num_grids
-
-            for i in range(num_grids):
-                for j in range(num_grids):
-                    center_points.append([i*interval+interval//2, j*interval+interval//2])
-            center_points = np.array(center_points)
-
-            mask, _, _ = sam.predict(
-                    point_coords=center_points,
-                    point_labels=[1 for _ in range(len(center_points))],
-                    multimask_output=False,
-                )
-            segs.append(mask)
-
-        # masks = sam.generate(color_img)
-        # segs = []
-        # for mask in masks:
-        #     # too large mask will be ignored
-        #     if mask['area'] > int(0.25 * 224 * 224):
-        #         continue
-        #     else:
-        #         segs.append(mask['segmentation'])
-        segs = torch.as_tensor(segs, dtype=torch.float32).to(device)
-        # print(segs.shape)
-        features = resnet(segs.permute(1, 0, 2, 3))
-        # print(features.shape)
-        # quit(0)
-        # segs_hmap = torch.cat((segs, depth_img), dim=0)
-        # downsample the segmentation masks and height map from 1*224*224 to 1*512
-        # features = resnet(segs_hmap.unsqueeze(1).repeat(1, 3, 1, 1))
-
-    return features
 
 if __name__ == "__main__":
 
@@ -146,18 +86,7 @@ if __name__ == "__main__":
     logger = Logger()
     # load graspnet
     graspnet = Graspnet()
-    # load sam model
-    sam_checkpoint = "assets/sam_hq_vit_b.pth"
-    model_type = "vit_b"
-    sam = sam_model_registry[model_type](checkpoint=sam_checkpoint)
-    sam.to(device=args.device)
-    # sam_mask_generator = SamAutomaticMaskGenerator(sam)
-    sam_mask_generator = SamPredictor(sam)
-    # load resnet
-    resnet = resnet18(pretrained=True)
-    resnet.fc = nn.Identity()
-    resnet.to(device=args.device)
-    # build agent
+    # load vision-language-action model
     agent = SAMG(grasp_dim=7, args=args)
     if args.load_model:
         logger.load_checkpoint(agent, args.model_path, args.evaluate)
@@ -178,16 +107,12 @@ if __name__ == "__main__":
 
         while not reset:
             env.reset()
-            # env.step(None)
-            # env_sim.reset()
-            # lang_goal = env.generate_lang_goal()
-            # if episode < 500:
-            #     warmup_num_obj = 8
-            #     reset = env.add_objects(warmup_num_obj, WORKSPACE_LIMITS)
-            # else:
-            #     reset = env.add_objects(num_obj, WORKSPACE_LIMITS)
-            reset = env.add_objects(num_obj, WORKSPACE_LIMITS)
-            # print(f"\033[032m Reset environment of episode {episode}, language goal {lang_goal}\033[0m")
+
+            if episode < 500:
+                warmup_num_obj = 8
+                reset = env.add_objects(warmup_num_obj, WORKSPACE_LIMITS)
+            else:
+                reset = env.add_objects(num_obj, WORKSPACE_LIMITS)
 
         while not done:
             if episode_steps == 0:
@@ -199,26 +124,20 @@ if __name__ == "__main__":
                 # Note that the object poses here can be replaced by the bbox 3D positions with identity rotations
                 with torch.no_grad():
                     grasp_pose_set, _, _ = graspnet.grasp_detection(pcd, env.get_true_object_poses())
-                # print("Number of grasping poses******************", len(grasp_pose_set))
+                print("Number of grasping poses", len(grasp_pose_set))
                 if len(grasp_pose_set) == 0:
-                    print("\033[031m No grasping poses!\033[0m")
                     break
                 # preprocess
                 remain_bbox_images, bboxes, pos_bboxes, grasps = utils.preprocess(bbox_images, bbox_positions, grasp_pose_set, (args.patch_size, args.patch_size))
-                # print(grasps.shape, len(grasp_pose_set), '*************************')
-                # print(bboxes.shape, pos_bboxes)
-                # quit(0)
                 if bboxes == None:
-                    print("\033[031m No grasping poses!\033[0m")
                     break
-            
-            sam_features = sam_resnet_fusion(sam_mask_generator, resnet, color_image, depth_image, args.device)
+
             if len(grasp_pose_set) == 1:
                 action_idx = 0
             else:
                 if np.random.randn () <= episilo: # greedy policy 
                     with torch.no_grad():
-                        logits, action_idx = agent.select_action(sam_features, grasps)
+                        logits, action_idx, clip_probs, vig_attn = agent.select_action(bboxes, pos_bboxes, lang_goal, grasps)
                 else:
                     action_idx = np.random.randint(0, len(grasp_pose_set))
 
@@ -232,9 +151,9 @@ if __name__ == "__main__":
                     updates += 1
 
             reward, done = env.step(action)
-            # if episode < 500:
-            #     if reward > -1 and reward < 0:
-            #         reward = -1
+            if episode < 500:
+                if reward > -1 and reward < 0:
+                    reward = -1
             episode_steps += 1
             iteration += 1
             episode_reward += reward
@@ -248,28 +167,18 @@ if __name__ == "__main__":
                 next_grasp_pose_set, _, _ = graspnet.grasp_detection(next_pcd, env.get_true_object_poses())
             print("Number of grasping poses in next state", len(next_grasp_pose_set))
             if len(next_grasp_pose_set) == 0:
-                print("\033[031m No grasping poses in next state!\033[0m")
                 break
 
             # preprocess
             next_remain_bbox_images, next_bboxes, next_pos_bboxes, next_grasps = utils.preprocess(next_bbox_images, next_bbox_positions, next_grasp_pose_set, (args.patch_size, args.patch_size))
             if next_bboxes == None:
-                print("\033[031m No grasping poses in next state!\033[0m")
                 break
 
             # Ignore the "done" signal if it comes from hitting the max step horizon.
             # (https://github.com/openai/spinningup/blob/master/spinup/algos/sac/sac.py)
             mask = 1 if episode_steps == args.max_episode_step else float(not done)
 
-            # memory.push(bboxes.detach().cpu().numpy()[0], pos_bboxes.detach().cpu().numpy()[0], 
-            #             grasps.detach().cpu().numpy()[0], lang_goal, action_idx, reward, 
-            #             next_bboxes.detach().cpu().numpy()[0], next_pos_bboxes.detach().cpu().numpy()[0], 
-            #             next_grasps.detach().cpu().numpy()[0], mask) # Append transition to memory
-            next_sam_features = sam_resnet_fusion(sam_mask_generator, resnet, next_color_image, next_depth_image, args.device)
-            memory.push(sam_features.detach().cpu().numpy(), 
-                        grasps.detach().cpu().numpy()[0], action_idx, reward, 
-                        next_sam_features.detach().cpu().numpy(),
-                        next_grasps.detach().cpu().numpy()[0], mask) # Append transition to memory
+            memory.push(bboxes.detach().cpu().numpy()[0], pos_bboxes.detach().cpu().numpy()[0], grasps.detach().cpu().numpy()[0], lang_goal, action_idx, reward, next_bboxes.detach().cpu().numpy()[0], next_pos_bboxes.detach().cpu().numpy()[0], next_grasps.detach().cpu().numpy()[0], mask) # Append transition to memory
             
             # record
             logger.save_heightmaps(iteration, color_image, depth_image)
@@ -280,7 +189,6 @@ if __name__ == "__main__":
             logger.write_to_log('executed_action', logger.executed_action_logs)
             
             if done or episode_steps == args.max_episode_step:
-                print('Done!')
                 break
 
             color_image = next_color_image
@@ -291,7 +199,6 @@ if __name__ == "__main__":
             pos_bboxes = next_pos_bboxes
             grasps = next_grasps
             grasp_pose_set = next_grasp_pose_set
-            sam_features = next_sam_features
 
         
         if (episode + 1) % args.save_model_interval == 0:
