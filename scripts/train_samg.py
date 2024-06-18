@@ -35,7 +35,7 @@ def parse_args():
 
     parser.add_argument('--num_obj', action='store', type=int, default=15)
     parser.add_argument('--num_episode', action='store', type=int, default=5000)
-    parser.add_argument('--max_episode_step', type=int, default=30)
+    parser.add_argument('--max_episode_step', type=int, default=15)
 
     # Transformer paras
     parser.add_argument('--patch_size', type=int, default=32)
