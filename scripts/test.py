@@ -67,8 +67,9 @@ if __name__ == "__main__":
     graspnet = Graspnet()
     # load vision-language-action model
     agent = ViLG(grasp_dim=7, args=args)
-    if args.load_model:
-        logger.load_checkpoint(agent, args.model_path, args.evaluate)
+    logger.load_checkpoint(agent, 
+                           'assets/trained_model.pth', 
+                           args.evaluate)
         
     if os.path.exists(args.testing_case_dir):
         filelist = os.listdir(args.testing_case_dir)

@@ -348,14 +348,15 @@ class Environment:
             success, grasped_obj_id, pos_dist = self.grasp(pose)
             # Grasping fails
             if not success:
-                reward = -1
+                reward = 0
             else:
-                if grasped_obj_id in self.target_obj_ids:
-                    reward = 2
-                    done = True
-                else:
-                    max_pos_dist = np.sqrt((WORKSPACE_LIMITS[0][1]-WORKSPACE_LIMITS[0][0]) ** 2 + (WORKSPACE_LIMITS[1][1]-WORKSPACE_LIMITS[1][0]) ** 2)
-                    reward = - pos_dist / max_pos_dist
+                # if grasped_obj_id in self.target_obj_ids:
+                #     reward = 2
+                #     done = True
+                # else:
+                #     max_pos_dist = np.sqrt((WORKSPACE_LIMITS[0][1]-WORKSPACE_LIMITS[0][0]) ** 2 + (WORKSPACE_LIMITS[1][1]-WORKSPACE_LIMITS[1][0]) ** 2)
+                #     reward = - pos_dist / max_pos_dist
+                reward = 1
 
         # Step simulator asynchronously until objects settle.
         while not self.is_static:
@@ -768,7 +769,7 @@ class Environment:
             self.open_gripper(is_slow=True)
         self.go_home()
 
-        print(f"Grasp at {pose}, the grasp {success}")
+        # print(f"Grasp at {pose}, the grasp {success}")
 
         pb.changeDynamics(
             self.ee, self.ee_finger_pad_id, lateralFriction=0.9

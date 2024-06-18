@@ -10,7 +10,7 @@ import torch
 import utils
 from env.constants import WORKSPACE_LIMITS
 from env.environment_samg import Environment
-from logger import Logger
+from logger import SAMGLogger
 from grasp_detetor import Graspnet
 from models.replay_memory import SAMGReplayMemory
 from models.samg_sac import SAMG
@@ -143,7 +143,7 @@ if __name__ == "__main__":
     env.seed(args.seed)
     # env_sim = Environment(gui=False)
     # load logger
-    logger = Logger()
+    logger = SAMGLogger()
     # load graspnet
     graspnet = Graspnet()
     # load sam model

@@ -13,7 +13,7 @@ class SAMG(object):
 
         # state-action feature
         self.samg_fusion = SAMGraspFusion(grasp_dim, args.width, self.device).to(device=self.device)
-        self.feature_optim = Adam(self.smag_fusion.parameters(), lr=args.lr)
+        self.feature_optim = Adam(self.samg_fusion.parameters(), lr=args.lr)
 
         # critic
         self.critic = QNetwork(args.width, args.hidden_size).to(device=self.device)            
@@ -42,7 +42,7 @@ class SAMG(object):
             # hard update
             for target_param, param in zip(self.critic_target.parameters(), self.critic.parameters()):
                 target_param.data.copy_(param.data)
-            for k,v in self.smag_fusion.named_parameters():
+            for k,v in self.samg_fusion.named_parameters():
                 if 'clip' in k:
                     v.requires_grad = False # fix parameters
                     # print(v.requires_grad)
@@ -53,7 +53,7 @@ class SAMG(object):
             self.policy.train()
 
         else:
-            self.smag_fusion.eval()
+            self.samg_fusion.eval()
             self.critic.eval()
             self.critic_target.eval()
             self.policy.eval()
@@ -61,7 +61,7 @@ class SAMG(object):
 
     def select_action(self, color_depth_image, actions, evaluate=False):
         # print(bboxes.shape, pos_bboxes.shape, actions.shape)
-        sa = self.smag_fusion(color_depth_image, actions)
+        sa = self.samg_fusion(color_depth_image, actions)
         logits = self.policy(sa)
         # print(sa.size(), logits.shape, 'sa')
         # quit(0)
@@ -102,7 +102,7 @@ class SAMG(object):
         mask_batch = torch.FloatTensor(mask_batch).to(self.device)
 
         with torch.no_grad():
-            next_sa = self.smag_fusion(next_sam_batch, next_grasps_batch)
+            next_sa = self.samg_fusion(next_sam_batch, next_grasps_batch)
 
             logits = self.policy(next_sa)
             if next_sa.shape[0] == 1:
@@ -125,7 +125,7 @@ class SAMG(object):
 
             next_q_value = reward_batch + mask_batch * self.gamma * (min_qf_next_target)
             
-        sa = self.smag_fusion(sam_batch, grasps_batch)
+        sa = self.samg_fusion(sam_batch, grasps_batch)
         qf1, qf2 = self.critic(sa)  # Two Q-functions to mitigate positive bias in the policy improvement step        
 
 
@@ -143,7 +143,7 @@ class SAMG(object):
         # torch.nn.utils.clip_grad_norm_(self.critic.parameters(), 0.1)
         self.critic_optim.step()
 
-        sa = self.smag_fusion(sam_batch, grasps_batch)
+        sa = self.samg_fusion(sam_batch, grasps_batch)
         logits = self.policy(sa)
         if sa.shape[0] == 1:
             logits = logits.unsqueeze(0)
@@ -221,7 +221,7 @@ class SAMG(object):
 
         # update feature module with total loss
         with torch.no_grad():
-            next_sa = self.smag_fusion(next_sam_batch, next_grasps_batch)
+            next_sa = self.samg_fusion(next_sam_batch, next_grasps_batch)
             
             logits = self.policy(next_sa)
             if next_sa.shape[0] == 1:
@@ -243,7 +243,7 @@ class SAMG(object):
             next_q_value = reward_batch + mask_batch * self.gamma * (min_qf_next_target)
             next_q_value = next_q_value[0]
 
-        sa = self.smag_fusion(sam_batch, grasps_batch)
+        sa = self.samg_fusion(sam_batch, grasps_batch)
         qf1, qf2 = self.critic(sa)  # Two Q-functions to mitigate positive bias in the policy improvement step        
         qf1 = torch.max(qf1.squeeze(-1), dim=1)[0]
         qf2 = torch.max(qf2.squeeze(-1), dim=1)[0]
@@ -289,7 +289,7 @@ class SAMG(object):
 
         self.feature_optim.zero_grad()
         total_loss.backward()
-        # torch.nn.utils.clip_grad_norm_(self.smag_fusion.parameters(), 0.1)
+        # torch.nn.utils.clip_grad_norm_(self.samg_fusion.parameters(), 0.1)
         self.feature_optim.step()
         
         return qf1_loss.item(), qf2_loss.item(), policy_loss.item(), alpha_loss.item(), alpha_tlogs.item(), total_loss.item()

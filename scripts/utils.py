@@ -436,7 +436,7 @@ def preprocess(bbox_images, bbox_positions, grasp_pose_set, n_px):
         if bbox_images[i].shape[0] >= 15 and bbox_images[i].shape[1] >= 15:
             remain_bboxes.append(bbox_images[i])  # shape = [n_obj, H, W, C]
             remain_bbox_positions.append(bbox_positions[i])
-    print('Remaining bbox number', len(remain_bboxes))
+    # print('Remaining bbox number', len(remain_bboxes))
     bboxes = None
     for remain_bbox in remain_bboxes:
         remain_bbox = Image.fromarray(remain_bbox)
