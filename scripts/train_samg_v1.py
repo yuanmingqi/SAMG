@@ -1,4 +1,5 @@
 import argparse
+import cv2
 import numpy as np
 import random
 import datetime
@@ -30,13 +31,18 @@ def sam_resnet_fusion(sam, resnet, color_img, device):
                 point_labels=[1 for _ in range(len(center_points))],
                 multimask_output=False,
             )
+        mask = mask.transpose(1, 2, 0)
+        mask = np.float32(mask)
+        mask = cv2.resize(mask, (84, 84))
+        mask = np.expand_dims(mask, axis=0)
 
         mask = torch.as_tensor(mask, dtype=torch.float32, device=device)
         # downsample the segmentation masks and height map from 1*224*224 to 1*512
-        features = resnet(mask.unsqueeze(1).repeat(1, 3, 1, 1))
+        # features = resnet(mask.unsqueeze(1).repeat(1, 3, 1, 1))
         # print(features.sum(), 'features sum')
 
-    return features
+    # return features
+    return mask.unsqueeze(1).repeat(1, 3, 1, 1)
 
 
 def parse_args():
@@ -118,10 +124,11 @@ if __name__ == "__main__":
     sam.to(device=args.device)
     # sam_mask_generator = SamAutomaticMaskGenerator(sam)
     sam_mask_generator = SamPredictor(sam)
-    # load resnet
-    resnet = resnet18(pretrained=True)
-    resnet.fc = nn.Identity()
-    resnet.to(device=args.device)
+    # # load resnet
+    # resnet = resnet18(pretrained=True)
+    # resnet.fc = nn.Identity()
+    # resnet.to(device=args.device)
+    resnet = None
     # build agent
     agent = SAMG(grasp_dim=7, args=args)
 
@@ -143,7 +150,7 @@ if __name__ == "__main__":
             env.reset()
             # env_sim.reset()
             lang_goal = env.generate_lang_goal()
-            if episode < 500:
+            if episode < 1000:
                 warmup_num_obj = 8
                 args.max_episode_step = warmup_num_obj
                 reset = env.add_objects(warmup_num_obj, WORKSPACE_LIMITS)

@@ -4,9 +4,10 @@ from typing import Iterator
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+import numpy as np
 from models.clip.clip import build_model, load_clip, tokenize
 
-# from torchvision.models import resnet18
+from torchvision.models import resnet18
 
 # positional embedding with sin/cos
 class Embedder(nn.Module):
@@ -450,12 +451,33 @@ class SAMGraspFusion(nn.Module):
         #                                   num_layers=2, batch_first=True), 
         #                         extract_tensor()
         #                         )
-        self.lstm = nn.Sequential(nn.Linear(512, 256),
-                                nn.ReLU(),
-                                nn.Linear(256, width),
-                                nn.ReLU(),
-                                nn.Linear(width, width)
-                                )
+        # self.lstm = nn.Sequential(nn.Linear(512, 256),
+        #                         nn.ReLU(),
+        #                         nn.Linear(256, width),
+        #                         nn.ReLU(),
+        #                         nn.Linear(width, width)
+        #                         )
+        
+        # self.lstm = resnet18(pretrained=True)
+        # self.lstm.fc = nn.Identity()
+        # self.lstm.to('cuda')
+
+        def layer_init(layer, std=np.sqrt(2), bias_const=0.0):
+            torch.nn.init.orthogonal_(layer.weight, std)
+            torch.nn.init.constant_(layer.bias, bias_const)
+            return layer
+
+        self.lstm = nn.Sequential(
+            layer_init(nn.Conv2d(3, 32, 8, stride=4)),
+            nn.ReLU(),
+            layer_init(nn.Conv2d(32, 64, 4, stride=2)),
+            nn.ReLU(),
+            layer_init(nn.Conv2d(64, 64, 3, stride=1)),
+            nn.ReLU(),
+            nn.Flatten(),
+            layer_init(nn.Linear(64 * 7 * 7, 512)),
+            nn.ReLU(),
+        )   
 
     def encode_grasp(self, x):
         grasp_emb = self.grasp_embbedding(x.to(self.device)) # shape = [N, L', D]
@@ -463,13 +485,14 @@ class SAMGraspFusion(nn.Module):
     
     def forward(self, color_depth_img, grasp):
         # print(color_depth_img.shape, 'color_depth_img')
-        if len(color_depth_img.shape) == 3:
+        if len(color_depth_img.shape) == 5:
             color_depth_img = color_depth_img.squeeze(0)
         # encode grasp
         grasp_feat = self.encode_grasp(grasp) # shape = [N, L', D]
         grasp_feat = grasp_feat.permute(1, 0, 2)  # NL'D -> L'ND
         # encode color and depth image
-        color_depth_feat = self.lstm(color_depth_img.unsqueeze(0)) 
+        # color_depth_feat = self.lstm(color_depth_img.unsqueeze(0))
+        color_depth_feat = self.lstm(color_depth_img) 
         # return torch.cat((color_depth_feat, grasp_feat), dim=-1)
         # return color_depth_feat, grasp_feat
 
