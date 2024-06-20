@@ -3,6 +3,7 @@ import cv2
 import numpy as np
 import random
 import datetime
+from regex import F
 import torch
 
 import utils
@@ -110,7 +111,7 @@ if __name__ == "__main__":
     num_episode = args.num_episode
 
     # load environment
-    env = Environment(gui=True)
+    env = Environment(gui=False)
     env.seed(args.seed)
     # env_sim = Environment(gui=False)
     # load logger
@@ -166,9 +167,11 @@ if __name__ == "__main__":
 
                 # graspnet
                 pcd = utils.get_fuse_pointcloud(env)
+                print(pcd)
                 # Note that the object poses here can be replaced by the bbox 3D positions with identity rotations
                 with torch.no_grad():
-                    grasp_pose_set, _, _ = graspnet.grasp_detection(pcd, env.get_true_object_poses())
+                    object_poses = env.get_true_object_poses()
+                    grasp_pose_set, _, _ = graspnet.grasp_detection(pcd, object_poses)
                 # print("Number of grasping poses", len(grasp_pose_set))
                 if len(grasp_pose_set) == 0:
                     break

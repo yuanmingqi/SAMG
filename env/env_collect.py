@@ -118,16 +118,17 @@ class Environment:
         for obj_id in self.obj_ids["rigid"]:
             pos, orn = pb.getBasePositionAndOrientation(obj_id)
             self.all_states.append((pos, orn))
-        pos, orn = pb.getBasePositionAndOrientation(self.ur5e)
-        self.all_states.append((pos, orn))
+        # pos, orn = pb.getBasePositionAndOrientation(self.ur5e)
+        # self.all_states.append((pos, orn))
     
     def restore(self):
         # restore the pos and orn of all the objects and the ur5e
         for obj_id in self.obj_ids["rigid"]:
             pos, orn = self.all_states.pop(0)
             pb.resetBasePositionAndOrientation(obj_id, pos, orn)
-        pos, orn = self.all_states.pop(0)
-        pb.resetBasePositionAndOrientation(self.ur5e, pos, orn)
+        # pos, orn = self.all_states.pop(0)
+        # pb.resetBasePositionAndOrientation(self.ur5e, pos, orn)
+        self.go_home()
 
     def get_target_id(self):
         return self.target_obj_ids
@@ -364,16 +365,11 @@ class Environment:
         done = False
         if pose is not None:
             success, grasped_obj_id, pos_dist = self.grasp(pose)
+                
             # Grasping fails
             if not success:
                 reward = 0
             else:
-                # if grasped_obj_id in self.target_obj_ids:
-                #     reward = 2
-                #     done = True
-                # else:
-                #     max_pos_dist = np.sqrt((WORKSPACE_LIMITS[0][1]-WORKSPACE_LIMITS[0][0]) ** 2 + (WORKSPACE_LIMITS[1][1]-WORKSPACE_LIMITS[1][0]) ** 2)
-                #     reward = - pos_dist / max_pos_dist
                 reward = 1
 
         # Step simulator asynchronously until objects settle.
@@ -446,6 +442,34 @@ class Environment:
     def get_link_pose(self, body, link):
         result = pb.getLinkState(body, link)
         return result[4], result[5]
+    
+    def add_fixed_objects(self):
+        obj_mesh_ind = ['002', '058', '013', '022', '039',
+                        '021', '039', '022', '057', '020', 
+                        '039', '058'
+                        ]
+
+        # Add each object to robot workspace at x,y location and orientation (random or pre-loaded)
+        body_ids = []
+        self.target_obj_ids = []
+
+        drop_data = np.load("assets/drop.npz")
+        # add other objects
+        for object_idx in range(len(obj_mesh_ind)):
+            curr_mesh_file = obj_mesh_ind[object_idx]
+
+            object_position = drop_data['pos'][object_idx]
+            object_orientation = drop_data['orn'][object_idx]
+
+            body_id = pb.loadURDF(
+                'assets/simplified_objects/'+curr_mesh_file+'.urdf', 
+                object_position, pb.getQuaternionFromEuler(object_orientation)
+            )
+            body_ids.append(body_id)
+            self.add_object_id(body_id)
+            self.wait_static()
+
+        return body_ids, True
 
     def add_objects(self, num_obj, workspace_limits):
         """Randomly dropped objects to the workspace"""
@@ -767,7 +791,7 @@ class Environment:
             self.close_gripper()
             success = self.straight_move(pos, over, rot, speed)
             success &= self.is_gripper_closed
-            
+
             if success: # get grasp object id
                 max_height = -0.0001
                 for i in self.obj_ids["rigid"]:
@@ -775,17 +799,21 @@ class Environment:
                     if height >= max_height:
                         grasped_obj_id = i
                         max_height = height
-                pos_dists = []
-                for target_obj_id in self.target_obj_ids:
-                    pos_dist = np.linalg.norm(np.array(self.info[grasped_obj_id][0]) - np.array(self.info[target_obj_id][0]))
-                    pos_dists.append(pos_dist)
-                min_pos_dist = min(pos_dists)
 
         if success:
             success = self.move_joints(self.drop_joints1)
             # success &= self.is_gripper_closed
             self.open_gripper(is_slow=True)
         self.go_home()
+
+        if success:
+            pos, _, _ = self.obj_info(grasped_obj_id)
+            if pos[0] < WORKSPACE_LIMITS[0][0] or pos[0] > WORKSPACE_LIMITS[0][1] \
+                or pos[1] < WORKSPACE_LIMITS[1][0] or pos[1] > WORKSPACE_LIMITS[1][1]:
+                pass
+            else:
+                print('picked object still in workspace')
+                success = False
 
         # print(f"Grasp at {pose}, the grasp {success}")
 
