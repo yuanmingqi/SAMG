@@ -1,19 +1,30 @@
+import os
 import cv2
 import time
 import pickle
 import numpy as np
 import torch
+import argparse
 
 import utils
 from env.constants import WORKSPACE_LIMITS
 from env.env_collect import Environment
 from grasp_detetor import Graspnet
 
-if __name__ == "__main__":
-    num_episode = 10
-    seed = 1234
+def get_args():
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--tag', type=str, default='high', help='high, mid, low')
+    parser.add_argument('--num_episode', type=int, default=1000, help='Number of episodes')
+    parser.add_argument('--seed', type=int, default=1234, help='Random seed')
+    return parser.parse_args()
 
-    env = Environment(gui=True)
+if __name__ == "__main__":
+    args = get_args()
+    tag = args.tag
+    num_episode = args.num_episode
+    seed = args.seed
+
+    env = Environment(gui=False)
     env.seed(seed)
 
     # load graspnet
@@ -22,16 +33,20 @@ if __name__ == "__main__":
     for episode in range(num_episode):
         env.reset()
         env.generate_lang_goal()
-        # if episode < 1000:
-        #     num_obj = 8
-        #     reset = env.add_objects(num_obj, WORKSPACE_LIMITS)
-        # else:
-        #     num_obj = 15
-        #     reset = env.add_objects(num_obj, WORKSPACE_LIMITS)
+        if tag == 'high':
+            num_obj = 15
+        elif tag == 'mid':
+            num_obj = 8
+        elif tag == 'low':
+            num_obj = 3
+        else:
+            raise ValueError("Invalid tag")
 
-        env.add_fixed_objects()
+        # env.add_fixed_objects()
+        _, _, obj_urdf_files, obj_init_poses, obj_init_orns = env.add_objects(num_obj, WORKSPACE_LIMITS)
 
         eps_rgb_images = []
+        eps_depth_images = []
         eps_grasp_poses = []
         eps_grasp_labels = []
 
@@ -41,8 +56,9 @@ if __name__ == "__main__":
             color_image, depth_image, mask_image = utils.get_true_heightmap(env)
             bbox_images, bbox_positions = utils.get_true_bboxs(env, color_image, depth_image, mask_image)
 
-            # collect rgb images
+            # collect rgb and depth images
             eps_rgb_images.append(color_image)
+            eps_depth_images.append(depth_image)
 
             # graspnet
             pcd = utils.get_fuse_pointcloud(env)
@@ -83,7 +99,16 @@ if __name__ == "__main__":
         
         if vaild:
             # save data
-            with open(f"assets/episode_{episode}.pkl", "wb") as f:
-                pickle.dump((eps_rgb_images, eps_grasp_poses, eps_grasp_labels), f)
+            stamp = episode ^ int.from_bytes(os.urandom(4), byteorder="little")
+            with open(f"datasets/{tag}/episode_{episode}.pkl", "wb") as f:
+                pickle.dump({
+                    "obj_urdf_files": obj_urdf_files,
+                    "obj_init_poses": obj_init_poses,
+                    "obj_init_orns": obj_init_orns,
+                    "rgb_images": eps_rgb_images,
+                    "depth_images": eps_depth_images,
+                    "grasp_poses": eps_grasp_poses,
+                    "grasp_labels": eps_grasp_labels
+                }, f)
             
             

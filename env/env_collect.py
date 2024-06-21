@@ -490,10 +490,15 @@ class Environment:
         body_ids = []
         self.target_obj_ids = []
 
+        all_urdf_files = []
+        all_pos = []
+        all_orn = []
+
         with open("cases/" + "temp.txt", "w") as out_file:
             out_file.write("%s\n" % self.lang_goal)
             # add target objects
             for target_mesh_file in target_mesh_list:
+                all_urdf_files.append(target_mesh_file)
                 drop_x = (
                     (workspace_limits[0][1] - workspace_limits[0][0] - 0.2) * np.random.random_sample()
                     + workspace_limits[0][0]
@@ -510,6 +515,11 @@ class Environment:
                     2 * np.pi * np.random.random_sample(),
                     2 * np.pi * np.random.random_sample(),
                 ]
+                
+                # save pos and orn
+                all_pos.append(object_position)
+                all_orn.append(object_orientation)
+
                 body_id = pb.loadURDF(
                     target_mesh_file, object_position, pb.getQuaternionFromEuler(object_orientation)
                 )
@@ -535,6 +545,7 @@ class Environment:
             # add other objects
             for object_idx in range(len(obj_mesh_ind)):
                 curr_mesh_file = mesh_list[obj_mesh_ind[object_idx]]
+                all_urdf_files.append(curr_mesh_file)
                 drop_x = (
                     (workspace_limits[0][1] - workspace_limits[0][0] - 0.2) * np.random.random_sample()
                     + workspace_limits[0][0]
@@ -551,6 +562,9 @@ class Environment:
                     2 * np.pi * np.random.random_sample(),
                     2 * np.pi * np.random.random_sample(),
                 ]
+                # save pos and orn
+                all_pos.append(object_position)
+                all_orn.append(object_orientation)
                 body_id = pb.loadURDF(
                     curr_mesh_file, object_position, pb.getQuaternionFromEuler(object_orientation)
                 )
@@ -572,7 +586,7 @@ class Environment:
                 )
 
 
-        return body_ids, True
+        return body_ids, True, all_urdf_files, all_pos, all_orn
 
     def add_object_push_from_file(self, file_name, switch=None):
         success = True
