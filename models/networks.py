@@ -241,8 +241,10 @@ class CLIPGraspFusion(nn.Module):
         with torch.no_grad():
             if x.shape[0] == 1:
                 bboxs = x[0]
+                print(bboxs.shape, 'bboxs1')
                 padding = nn.ZeroPad2d(bboxs[0].shape[1] * 3)
                 bboxs = padding(bboxs)
+                print(bboxs.shape, 'bboxs2')
                 bbox_feat = self.clip.encode_image(bboxs.to(self.device))
                 bbox_feat = bbox_feat.unsqueeze(0)
         return bbox_feat
@@ -297,8 +299,12 @@ class CLIPGraspFusion(nn.Module):
         fusion_feat = fusion_feat.float().permute(1, 0, 2)  # NLD -> LND
 
         # encode bbox positions
+        print(pos_bboxes.shape, 'pos_bboxes1')
         pos_bboxes = self.pos_projection(pos_bboxes)
         bbox_pos_feat = self.encode_bbox_pos(pos_bboxes) # shape = [N, L, D]
+        print(pos_bboxes.shape, bbox_pos_feat.shape, 'bbox_pos_feat', grasp_feat.shape, 'grasp_feat', 
+              actions.shape, 'actions', bbox_feat.shape, 'bbox_feat', fusion_feat.shape, 'fusion_feat')
+        quit(0)
         # bbox_pos_feat = bbox_pos_feat.permute(1, 0, 2) # NLD -> LND
 
         # add fusion

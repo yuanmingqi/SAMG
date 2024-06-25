@@ -24,7 +24,7 @@ if __name__ == "__main__":
     num_episode = args.num_episode
     seed = args.seed
 
-    env = Environment(gui=False)
+    env = Environment(gui=True)
     env.seed(seed)
 
     # load graspnet
@@ -100,7 +100,7 @@ if __name__ == "__main__":
         if vaild:
             # save data
             stamp = episode ^ int.from_bytes(os.urandom(4), byteorder="little")
-            with open(f"datasets/{tag}/episode_{episode}.pkl", "wb") as f:
+            with open(f"datasets/{tag}/episode_{stamp}.pkl", "wb") as f:
                 pickle.dump({
                     "obj_urdf_files": obj_urdf_files,
                     "obj_init_poses": obj_init_poses,
