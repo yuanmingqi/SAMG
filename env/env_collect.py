@@ -484,7 +484,8 @@ class Environment:
             obj_mesh_file = "assets/simplified_objects/" + obj + ".urdf"
             mesh_list.remove(obj_mesh_file)
 
-        obj_mesh_ind = np.random.randint(0, len(mesh_list), size=num_obj-len(self.target_obj_lst))
+        # obj_mesh_ind = np.random.randint(0, len(mesh_list), size=num_obj-len(self.target_obj_lst))
+        obj_mesh_ind = np.random.randint(0, len(mesh_list), size=num_obj)
 
         # Add each object to robot workspace at x,y location and orientation (random or pre-loaded)
         body_ids = []
@@ -494,96 +495,34 @@ class Environment:
         all_pos = []
         all_orn = []
 
-        with open("cases/" + "temp.txt", "w") as out_file:
-            out_file.write("%s\n" % self.lang_goal)
-            # add target objects
-            for target_mesh_file in target_mesh_list:
-                all_urdf_files.append(target_mesh_file)
-                drop_x = (
-                    (workspace_limits[0][1] - workspace_limits[0][0] - 0.2) * np.random.random_sample()
-                    + workspace_limits[0][0]
-                    + 0.1
-                )
-                drop_y = (
-                    (workspace_limits[1][1] - workspace_limits[1][0] - 0.2) * np.random.random_sample()
-                    + workspace_limits[1][0]
-                    + 0.1
-                )
-                object_position = [drop_x, drop_y, 0.2]
-                object_orientation = [
-                    2 * np.pi * np.random.random_sample(),
-                    2 * np.pi * np.random.random_sample(),
-                    2 * np.pi * np.random.random_sample(),
-                ]
-                
-                # save pos and orn
-                all_pos.append(object_position)
-                all_orn.append(object_orientation)
-
-                body_id = pb.loadURDF(
-                    target_mesh_file, object_position, pb.getQuaternionFromEuler(object_orientation)
-                )
-                # pb.changeVisualShape(body_id, -1, rgbaColor=object_color)
-                body_ids.append(body_id)
-                self.target_obj_ids.append(body_id)
-                self.add_object_id(body_id)
-                self.wait_static()
-
-                out_file.write(
-                    "%s %.18e %.18e %.18e %.18e %.18e %.18e\n"
-                    % (
-                        target_mesh_file,
-                        object_position[0],
-                        object_position[1],
-                        object_position[2],
-                        object_orientation[0],
-                        object_orientation[1],
-                        object_orientation[2],
-                    )
-                )
-
-            # add other objects
-            for object_idx in range(len(obj_mesh_ind)):
-                curr_mesh_file = mesh_list[obj_mesh_ind[object_idx]]
-                all_urdf_files.append(curr_mesh_file)
-                drop_x = (
-                    (workspace_limits[0][1] - workspace_limits[0][0] - 0.2) * np.random.random_sample()
-                    + workspace_limits[0][0]
-                    + 0.1
-                )
-                drop_y = (
-                    (workspace_limits[1][1] - workspace_limits[1][0] - 0.2) * np.random.random_sample()
-                    + workspace_limits[1][0]
-                    + 0.1
-                )
-                object_position = [drop_x, drop_y, 0.2]
-                object_orientation = [
-                    2 * np.pi * np.random.random_sample(),
-                    2 * np.pi * np.random.random_sample(),
-                    2 * np.pi * np.random.random_sample(),
-                ]
-                # save pos and orn
-                all_pos.append(object_position)
-                all_orn.append(object_orientation)
-                body_id = pb.loadURDF(
-                    curr_mesh_file, object_position, pb.getQuaternionFromEuler(object_orientation)
-                )
-                body_ids.append(body_id)
-                self.add_object_id(body_id)
-                self.wait_static()
-
-                out_file.write(
-                    "%s %.18e %.18e %.18e %.18e %.18e %.18e\n"
-                    % (
-                        curr_mesh_file,
-                        object_position[0],
-                        object_position[1],
-                        object_position[2],
-                        object_orientation[0],
-                        object_orientation[1],
-                        object_orientation[2],
-                    )
-                )
+        for object_idx in range(len(obj_mesh_ind)):
+            curr_mesh_file = mesh_list[obj_mesh_ind[object_idx]]
+            all_urdf_files.append(curr_mesh_file)
+            drop_x = (
+                (workspace_limits[0][1] - workspace_limits[0][0] - 0.2) * np.random.random_sample()
+                + workspace_limits[0][0]
+                + 0.1
+            )
+            drop_y = (
+                (workspace_limits[1][1] - workspace_limits[1][0] - 0.2) * np.random.random_sample()
+                + workspace_limits[1][0]
+                + 0.1
+            )
+            object_position = [drop_x, drop_y, 0.2]
+            object_orientation = [
+                2 * np.pi * np.random.random_sample(),
+                2 * np.pi * np.random.random_sample(),
+                2 * np.pi * np.random.random_sample(),
+            ]
+            # save pos and orn
+            all_pos.append(object_position)
+            all_orn.append(object_orientation)
+            body_id = pb.loadURDF(
+                curr_mesh_file, object_position, pb.getQuaternionFromEuler(object_orientation)
+            )
+            body_ids.append(body_id)
+            self.add_object_id(body_id)
+            self.wait_static()
 
 
         return body_ids, True, all_urdf_files, all_pos, all_orn

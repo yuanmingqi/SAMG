@@ -45,7 +45,6 @@ if __name__ == "__main__":
 
         # save all the samples
         all_samples = []
-
         
         # get rgb and depth images  
         color_image, depth_image, mask_image = utils.get_true_heightmap(env)
@@ -59,13 +58,14 @@ if __name__ == "__main__":
             grasp_pose_set, _, _ = graspnet.grasp_detection(pcd, object_poses)
         
         # see if no available poses
-        if len(grasp_pose_set) == 0:
+        if len(grasp_pose_set) <= 1:
             break
         else:
             num_grasp_poses = len(grasp_pose_set)
 
         # try all grasp poses
         num_success_grasps = 0
+        num_failed_grasps = 0
         for idx, action in enumerate(grasp_pose_set):
             # take a snapshot
             env.snapshot()
@@ -77,9 +77,11 @@ if __name__ == "__main__":
                 num_success_grasps += 1
             else:
                 label = 0
+                num_failed_grasps += 1
 
-            print(f"Episode {episode}, Grasp No. : {idx}, Action: {idx}, {success == 1}")
+            print(f"Episode {episode}, {num_grasp_poses} Poses, Action: {idx}, {success == 1}")
 
+            # add a sample
             sample = {'rgb_image': color_image, 
                       'depth_image': depth_image, 
                       'grasp_pose': action, 
@@ -89,8 +91,8 @@ if __name__ == "__main__":
             # restore the objects
             env.restore()
         
-        # if no successful grasps, skip this episode
-        if num_grasp_poses == 0:
+        # if no successful or failed grasps, skip this episode
+        if num_success_grasps == 0 or num_failed_grasps == 0:
             break
 
         # save data
