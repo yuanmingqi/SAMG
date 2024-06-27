@@ -38,7 +38,7 @@ if __name__ == "__main__":
         elif tag == 'mid':
             num_obj = 8
         elif tag == 'low':
-            num_obj = 3
+            num_obj = 1
         else:
             raise ValueError("Invalid tag")
 
@@ -49,6 +49,8 @@ if __name__ == "__main__":
         eps_depth_images = []
         eps_grasp_poses = []
         eps_grasp_labels = []
+
+        all_samples = []
 
         eps_step = 0
         vaild = True
@@ -72,8 +74,27 @@ if __name__ == "__main__":
                 break
             else:
                 num_grasp_poses = len(grasp_pose_set)
-                eps_grasp_poses.append(np.array(grasp_pose_set))
-                labels = np.ones(num_grasp_poses) * 7
+                # eps_grasp_poses.append(np.array(grasp_pose_set))
+                # labels = np.ones(num_grasp_poses) * 7
+                pass
+
+            # try all grasp poses
+            for idx, action in enumerate(grasp_pose_set):
+                env.snapshot()
+                success, done = env.step(action)
+
+                label = 1 if success == 1 else 0
+
+                sample = {'rgb_image': color_image, 
+                          'depth_image': depth_image, 
+                          'grasp_pose': action, 
+                          'label': label}
+                all_samples.append(sample)
+
+
+                print(f"Episode {episode}, Step: {eps_step}, Action: {idx}, {success == 1}")
+
+                env.restore() if idx != num_grasp_poses - 1 else None
 
             for _ in range(num_grasp_poses):
                 idx = np.random.choice(num_grasp_poses, size=1, replace=False)[0]
