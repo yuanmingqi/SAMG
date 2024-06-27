@@ -38,11 +38,6 @@ if __name__ == "__main__":
         # env.add_fixed_objects()
         _, _, obj_urdf_files, obj_init_poses, obj_init_orns = env.add_objects(num_obj, WORKSPACE_LIMITS)
 
-        eps_rgb_images = []
-        eps_depth_images = []
-        eps_grasp_poses = []
-        eps_grasp_labels = []
-
         # save all the samples
         all_samples = []
         
@@ -66,6 +61,9 @@ if __name__ == "__main__":
         # try all grasp poses
         num_success_grasps = 0
         num_failed_grasps = 0
+
+        success_id
+
         for idx, action in enumerate(grasp_pose_set):
             # take a snapshot
             env.snapshot()
