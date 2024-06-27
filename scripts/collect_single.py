@@ -24,7 +24,7 @@ if __name__ == "__main__":
     num_episode = args.num_episode
     seed = args.seed
 
-    env = Environment(gui=True)
+    env = Environment(gui=False)
     env.seed(seed)
 
     # load graspnet
@@ -59,7 +59,7 @@ if __name__ == "__main__":
         
         # see if no available poses
         if len(grasp_pose_set) <= 1:
-            break
+            continue
         else:
             num_grasp_poses = len(grasp_pose_set)
 
@@ -93,7 +93,7 @@ if __name__ == "__main__":
         
         # if no successful or failed grasps, skip this episode
         if num_success_grasps == 0 or num_failed_grasps == 0:
-            break
+            continue
 
         # save data
         stamp = episode ^ int.from_bytes(os.urandom(4), byteorder="little")
