@@ -13,6 +13,21 @@ config.enable_stream(rs.stream.color, 640, 480, rs.format.bgr8, 30)
 # Start streaming
 pipeline.start(config)
 
+# Get the depth sensor's depth scale and camera intrinsics
+profile = pipeline.get_active_profile()
+depth_sensor = profile.get_device().first_depth_sensor()
+depth_stream = profile.get_stream(rs.stream.depth)
+depth_scale = depth_sensor.get_depth_scale()
+intrinsics = depth_stream.as_video_stream_profile().get_intrinsics()
+
+K = np.array([
+    [intrinsics.fx, 0, intrinsics.ppx],
+    [0, intrinsics.fy, intrinsics.ppy],
+    [0, 0, 1]
+])
+
+np.save('assets/camera_intrinsics.npy', K)
+
 try:
     while True:
         # Wait for a coherent pair of frames: depth and color
@@ -26,9 +41,6 @@ try:
         # Convert images to numpy arrays
         depth_image = np.asanyarray(depth_frame.get_data())
         color_image = np.asanyarray(color_frame.get_data())
-
-        # Get depth scale (distance per unit in depth image)
-        depth_scale = pipeline.get_active_profile().get_device().first_depth_sensor().get_depth_scale()
         
         # Convert depth image to distance in meters
         depth_image_in_meters = depth_image * depth_scale
@@ -44,8 +56,7 @@ try:
         # Press esc or 'q' to close the image window
         key = cv2.waitKey(1)
         if key & 0xFF == ord('q') or key == 27:
-            cv2.imwrite("./rgb.png", color_image)
-            # np.save("./samples/depth_data.npy", depth_image_in_meters)
+            np.savez('assets/rgb_depth_images.npz', rgb=color_image, depth=depth_image_in_meters)
             break
 
         # Print depth data for a specific pixel, for example, at the center of the image
