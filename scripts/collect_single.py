@@ -13,8 +13,8 @@ from grasp_detetor import Graspnet
 
 def get_args():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--tag', type=str, default='low', help='high, mid, low')
-    parser.add_argument('--num_episode', type=int, default=1000, help='Number of episodes')
+    parser.add_argument('--tag', type=str, default='mixed', help='high, mid, low')
+    parser.add_argument('--num_episode', type=int, default=10000, help='Number of episodes')
     parser.add_argument('--seed', type=int, default=1234, help='Random seed')
     return parser.parse_args()
 
@@ -30,16 +30,16 @@ if __name__ == "__main__":
     # load graspnet
     graspnet = Graspnet()
 
-    for episode in range(num_episode):
+    num_avail_episodes = 0
+    episode = 0
+    while num_avail_episodes < num_episode:
+        episode += 1
         env.reset()
         env.generate_lang_goal()
-        num_obj = 1
+        num_obj = np.random.randint(1, 10)
 
         # env.add_fixed_objects()
         _, _, obj_urdf_files, obj_init_poses, obj_init_orns = env.add_objects(num_obj, WORKSPACE_LIMITS)
-
-        # save all the samples
-        all_samples = []
         
         # get rgb and depth images  
         color_image, depth_image, mask_image = utils.get_true_heightmap(env)
@@ -59,10 +59,8 @@ if __name__ == "__main__":
             num_grasp_poses = len(grasp_pose_set)
 
         # try all grasp poses
-        num_success_grasps = 0
-        num_failed_grasps = 0
-
-        success_id
+        success_indices = []
+        failure_indices = []
 
         for idx, action in enumerate(grasp_pose_set):
             # take a snapshot
@@ -72,25 +70,25 @@ if __name__ == "__main__":
 
             if success == 1:
                 label = 1
-                num_success_grasps += 1
+                success_indices.append(idx)
             else:
                 label = 0
-                num_failed_grasps += 1
+                failure_indices.append(idx)
 
             print(f"Episode {episode}, {num_grasp_poses} Poses, Action: {idx}, {success == 1}")
 
-            # add a sample
-            sample = {'rgb_image': color_image, 
-                      'depth_image': depth_image, 
-                      'grasp_pose': action, 
-                      'label': label}
-            all_samples.append(sample)
-
             # restore the objects
             env.restore()
+
+        samples = {'rgb_image': color_image, 
+                  'depth_image': depth_image, 
+                  'grasp_poses': grasp_pose_set, 
+                  'success_indices': success_indices, 
+                  'failure_indices': failure_indices
+                }
         
         # if no successful or failed grasps, skip this episode
-        if num_success_grasps == 0 or num_failed_grasps == 0:
+        if len(success_indices) == 0 or len(failure_indices) == 0:
             continue
 
         # save data
@@ -100,7 +98,9 @@ if __name__ == "__main__":
                 "obj_urdf_files": obj_urdf_files,
                 "obj_init_poses": obj_init_poses,
                 "obj_init_orns": obj_init_orns,
-                "samples": all_samples
+                "samples": samples
             }, f)
+
+        num_avail_episodes += 1
             
             
