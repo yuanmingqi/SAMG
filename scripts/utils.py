@@ -5,6 +5,7 @@ import cv2
 import open3d as o3d
 import open3d_plus as o3dp
 import torch
+import matplotlib.pyplot as plt
 from torchvision.transforms import Compose, Resize, CenterCrop, ToTensor, Normalize
 from PIL import Image
 import matplotlib.pyplot as plt
@@ -84,14 +85,19 @@ def get_heightmap(points, colors, bounds, pixel_size):
     height = int(np.round((bounds[1, 1] - bounds[1, 0]) / pixel_size))
     heightmap = np.zeros((height, width), dtype=np.float32)
     colormap = np.zeros((height, width, colors.shape[-1]), dtype=np.uint8)
-
+    print(points.mean())
     # Filter out 3D points that are outside of the predefined bounds.
     ix = (points[Ellipsis, 0] >= bounds[0, 0]) & (points[Ellipsis, 0] < bounds[0, 1])
     iy = (points[Ellipsis, 1] >= bounds[1, 0]) & (points[Ellipsis, 1] < bounds[1, 1])
     iz = (points[Ellipsis, 2] >= bounds[2, 0]) & (points[Ellipsis, 2] < bounds[2, 1])
+    print(ix.sum(), iy.sum(), iz.sum(), 
+          (points[Ellipsis, 2] >= bounds[2, 0]).sum(),
+          (points[Ellipsis, 2] < bounds[2, 1]).sum()
+          )
     valid = ix & iy & iz
     points = points[valid]
     colors = colors[valid]
+    print(points.shape)
 
     # Sort 3D points by z-value, which works with array assignment to simulate
     # z-buffering for rendering the heightmap image.
@@ -180,7 +186,6 @@ def get_fuse_heightmaps(obs, configs, bounds, pixel_size):
 
 def get_true_heightmap(env):
     """Get RGB-D orthographic heightmaps and segmentation masks in simulation."""
-
     # Capture near-orthographic RGB-D images and segmentation masks.
     color, depth, segm = env.render_camera(env.oracle_cams[0])
 

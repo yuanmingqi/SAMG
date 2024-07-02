@@ -136,7 +136,7 @@ class Oracle:
     # Near-orthographic projection.
     image_size = (480, 640)
     intrinsics = np.array([[63e4, 0, 320], [0, 63e4, 240], [0, 0, 1]])
-    position = (0.5, 0, 900)
+    position = (0.5, 0, 1000.0)
     rotation = p.getQuaternionFromEuler((0, np.pi, -np.pi / 2))
 
     # Camera config.

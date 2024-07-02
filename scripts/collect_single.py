@@ -14,7 +14,8 @@ from grasp_detetor import Graspnet
 def get_args():
     parser = argparse.ArgumentParser()
     parser.add_argument('--tag', type=str, default='mixed', help='high, mid, low')
-    parser.add_argument('--num_episode', type=int, default=10000, help='Number of episodes')
+    parser.add_argument('--num_episode', type=int, default=250, help='Number of episodes')
+    parser.add_argument('--num_obj', type=int)
     parser.add_argument('--seed', type=int, default=1234, help='Random seed')
     return parser.parse_args()
 
@@ -23,6 +24,13 @@ if __name__ == "__main__":
     tag = args.tag
     num_episode = args.num_episode
     seed = args.seed
+    num_obj = args.num_obj
+
+    # crop setting
+    from_x = 98
+    from_y = 179
+    org_img_size = 283
+    crop_img_size = 224
 
     env = Environment(gui=False)
     env.seed(seed)
@@ -36,13 +44,21 @@ if __name__ == "__main__":
         episode += 1
         env.reset()
         env.generate_lang_goal()
-        num_obj = np.random.randint(1, 10)
+        # num_obj = np.random.randint(1, 10)
 
         # env.add_fixed_objects()
         _, _, obj_urdf_files, obj_init_poses, obj_init_orns = env.add_objects(num_obj, WORKSPACE_LIMITS)
         
         # get rgb and depth images  
-        color_image, depth_image, mask_image = utils.get_true_heightmap(env)
+        color_image, depth_image, mask_image = env.render_camera(env.oracle_cams[0])
+
+        color_image = color_image[from_x:from_x+org_img_size, from_y:from_y+org_img_size]
+        color_image = cv2.resize(color_image, (crop_img_size, crop_img_size))
+
+        depth_image = depth_image[from_x:from_x+org_img_size, from_y:from_y+org_img_size]
+        depth_image = cv2.resize(depth_image, (crop_img_size, crop_img_size))
+        # normalize depth image
+        depth_image = (depth_image - np.min(depth_image)) / (np.max(depth_image) - np.min(depth_image))
 
         # graspnet
         pcd = utils.get_fuse_pointcloud(env)
@@ -102,5 +118,6 @@ if __name__ == "__main__":
             }, f)
 
         num_avail_episodes += 1
+        print(f"\n Available episodes={num_avail_episodes} \n")
             
             

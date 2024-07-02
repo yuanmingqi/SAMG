@@ -13,20 +13,31 @@ config.enable_stream(rs.stream.color, 640, 480, rs.format.bgr8, 30)
 # Start streaming
 pipeline.start(config)
 
+# device = profile.get_device()
+# json_config = '{"device": {"json_preset": "Default"}}'
+# device.load_json(json_config)
+
 # Get the depth sensor's depth scale and camera intrinsics
 profile = pipeline.get_active_profile()
 depth_sensor = profile.get_device().first_depth_sensor()
+# 设置激光功率（范围是0到360，默认为150）
+depth_sensor.set_option(rs.option.laser_power, 360)
+# 增加深度单位，降低噪声
+depth_sensor.set_option(rs.option.depth_units, 0.001)
+# 设置视觉预设为高密度模式（高精度模式）
+depth_sensor.set_option(rs.option.visual_preset, 2)
+# get the depth scale and camera intrinsics
 depth_stream = profile.get_stream(rs.stream.depth)
 depth_scale = depth_sensor.get_depth_scale()
 intrinsics = depth_stream.as_video_stream_profile().get_intrinsics()
 
-K = np.array([
-    [intrinsics.fx, 0, intrinsics.ppx],
-    [0, intrinsics.fy, intrinsics.ppy],
-    [0, 0, 1]
-])
+# K = np.array([
+#     [intrinsics.fx, 0, intrinsics.ppx],
+#     [0, intrinsics.fy, intrinsics.ppy],
+#     [0, 0, 1]
+# ])
 
-np.save('assets/camera_intrinsics.npy', K)
+# np.save('assets/camera_intrinsics.npy', K)
 
 try:
     while True:
@@ -56,7 +67,7 @@ try:
         # Press esc or 'q' to close the image window
         key = cv2.waitKey(1)
         if key & 0xFF == ord('q') or key == 27:
-            np.savez('assets/rgb_depth_images.npz', rgb=color_image, depth=depth_image_in_meters)
+            np.savez('assets/rgb_depth_images.npz', rgb=color_image, depth=depth_image)
             break
 
         # Print depth data for a specific pixel, for example, at the center of the image
