@@ -26,7 +26,8 @@ def generate_heatmap_image(image_shape, boxes, sigma=10):
 
 if __name__ == '__main__':
     # environment settings
-    tag = 'low'
+    tag = 'mixed'
+    num_obj = 1
     img_width = 224
     img_height = 224
     min_mask_area = 100
@@ -47,7 +48,7 @@ if __name__ == '__main__':
 
     # load pickle files
     # use tqdm to show progress bar
-    for pkl_file in tqdm.tqdm(glob.glob(f"datasets/{tag}/*.pkl")):
+    for pkl_file in tqdm.tqdm(glob.glob(f"datasets/{tag}/*_{num_obj}_objs.pkl")):
         pkl_file_name = os.path.basename(pkl_file).split('.')[0]
         with open(pkl_file, 'rb') as f:
             data = pickle.load(f)
@@ -91,7 +92,7 @@ if __name__ == '__main__':
                 all_failure_grasps.append(failure_grasp)
 
     # save the dataset
-    np.savez(f"datasets/{tag}/processed_data.npz", 
+    np.savez(f"datasets/{tag}/processed_{num_obj}_objs.npz", 
              scenes=all_scenes_images, 
              success_grasps=all_success_grasps, 
              failure_grasps=all_failure_grasps)
