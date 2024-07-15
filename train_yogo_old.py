@@ -132,7 +132,7 @@ def main():
     #     all_data['scenes']= f['scenes'][:]
     #     all_data['success_grasps']= f['success_grasps'][:]
     #     all_data['failure_grasps']= f['failure_grasps'][:]
-    file = 'datasets/processed_data.npz'
+    file = '/media/SSD/zihui/data/processed_data.npz'
     all_data = np.load(file, allow_pickle=True)
     train_loader, eval_loader = build_loader(all_data, batch_size, device)
     # build model

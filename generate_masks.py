@@ -37,7 +37,7 @@ if __name__ == '__main__':
     # get arguments
     args = get_args()
     # environment settings
-    tag = 'mixed'
+    tag = 'single'
     num_obj = args.num_obj
     img_width = 224
     img_height = 224
