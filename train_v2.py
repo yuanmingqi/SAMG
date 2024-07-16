@@ -13,7 +13,7 @@ from vit_pytorch import ViT
 from torch.optim import lr_scheduler
 from collections import OrderedDict
 
-os.environ["CUDA_VISIBLE_DEVICES"] = "0,5,6,7"
+os.environ["CUDA_VISIBLE_DEVICES"] = "4,5,6,7"
 
 class YOGO(nn.Module):
     def __init__(self,

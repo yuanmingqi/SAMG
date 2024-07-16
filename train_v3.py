@@ -5,7 +5,6 @@ import tqdm
 import glob
 import torch as th
 import numpy as np
-import multiprocessing as mp
 import torch.nn as nn
 import torch.nn.functional as F
 import torchvision.models as models
@@ -14,7 +13,7 @@ from vit_pytorch import ViT
 from torch.optim import lr_scheduler
 from collections import OrderedDict
 
-os.environ["CUDA_VISIBLE_DEVICES"] = "3"
+os.environ["CUDA_VISIBLE_DEVICES"] = "4,5,6,7"
 
 class YOGO(nn.Module):
     def __init__(self,
@@ -142,17 +141,43 @@ class GraspBatchDataset(Dataset):
         
         return scene_images, success_grasps, failure_grasps
     
-def build_batch_loader(eval_data, batch_size, device, num_workers=4):
+def build_batch_loader(train_data, eval_data, batch_size, device, num_workers=4):
     # create datasets
-
+    train_dataset = GraspBatchDataset(train_data['scenes'], 
+                                      train_data['success_grasps'], 
+                                      train_data['failure_grasps'], 
+                                    #   train_data['num_objs'], 
+                                      device)
     eval_dataset = GraspBatchDataset(eval_data['scenes'], 
                                      eval_data['success_grasps'], 
                                      eval_data['failure_grasps'], 
                                     #  eval_data['num_objs'], 
                                      device)
     # build dataloaders
+    train_loader = DataLoader(train_dataset, batch_size=1, shuffle=True, pin_memory=True, num_workers=num_workers)
     eval_loader = DataLoader(eval_dataset, batch_size=1, shuffle=False, pin_memory=True, num_workers=num_workers)
-    return eval_loader
+    return train_loader, eval_loader
+
+# def load_h5(path, flag, batch_size):
+#     all_data = {
+#         'scenes': [],
+#         'success_grasps': [],
+#         'failure_grasps': [],
+#         # 'num_objs': []
+#     }
+#     file_list = glob.glob(f"{path}/{flag}_bs_{batch_size}*.h5")#[:1]
+#     # load all h5 files
+#     for file in tqdm.tqdm(file_list):
+#         with h5py.File(file, 'r') as f:
+#             all_data['scenes'].append(f['scenes'][:])
+#             all_data['success_grasps'].append(f['success_grasps'][:])
+#             all_data['failure_grasps'].append(f['failure_grasps'][:])
+#             # all_data['num_objs'].append(f['num_objs'][:])
+#     print(f"{flag} data loaded from {len(file_list)} files.")
+
+#     return all_data
+
+import multiprocessing as mp
 
 def load_h5_file(file):
     data = {
@@ -231,19 +256,58 @@ def main():
     margin = 0.5
     # set training parameters
     device = th.device("cuda")
+    num_epochs = 5000
+    batch_size = 1024
+    lr = 1e-4
+    lr_decay_factor = 0.99
+    lr_decay_step_size = 10
+    weight_decay = 1e-4
     # load data    
+    train_data = load_h5("./datasets/single/final", 'train', batch_size)
     eval_data = load_h5("./datasets/single/final", 'eval', batch_size)
     # build dataloaders
-    eval_loader = build_batch_loader(eval_data, batch_size, device)
+    train_loader, eval_loader = build_batch_loader(train_data, eval_data, batch_size, device)
     # build model
     yogo = YOGO(scene_image_size, grasp_dim, scene_embed_dim, grasp_embed_dim).to(device)
     # create parallel model
     yogo = nn.DataParallel(yogo)
     # load model
-    model_file = ''
-    yogo.module.load(model_file, device)
-    accuracy = evaluate(yogo, eval_loader, device)
-    print(model_file, accuracy)
+    # yogo.module.load("logs/yogo_0.9560_bs1024_margin05_v3.pth", device)
+    optimizer = th.optim.Adam(yogo.parameters(), lr=lr, weight_decay=weight_decay)
+    # lr scheduler
+    scheduler = lr_scheduler.StepLR(optimizer, step_size=lr_decay_step_size, gamma=lr_decay_factor)
+
+    bench = 0.5
+
+    # train loop
+    for epoch in range(num_epochs):
+        total_loss = th.tensor(0.0).to(device)
+        total_loss = 0.
+        t_s = time.perf_counter()
+        for scene_images, success_grasps, failure_grasps in train_loader:
+            # forward pass
+            optimizer.zero_grad()
+            scene_features, pos_features, neg_features = yogo(scene_images.squeeze(0).to(device), 
+                                                              success_grasps.squeeze(0).to(device), 
+                                                              failure_grasps.squeeze(0).to(device))
+            loss = yogo.module.triplet_loss(scene_features, pos_features, neg_features, margin)
+            loss.backward()
+            optimizer.step()
+            
+            total_loss += loss
+        t_e = time.perf_counter()
+        total_loss /= len(train_loader)
+        accuracy = evaluate(yogo, eval_loader, device)
+        # update lr
+        scheduler.step()
+        print(f"Epoch {epoch+1}/{num_epochs}, Train Loss: {total_loss:.4f}, Eval Acc: {accuracy:.4f}, Time: {t_e - t_s:.2f}s")
+
+        if accuracy > bench:
+            # try to remove old model
+            if os.path.exists(f"./logs/yogo_{bench:.4f}_v3.pth"):
+                os.remove(f"./logs/yogo_{bench:.4f}_v3.pth")
+            bench = accuracy
+            th.save(yogo.state_dict(), f"./logs/yogo_{accuracy:.4f}_v3.pth")
 
 
 if __name__ == "__main__":
