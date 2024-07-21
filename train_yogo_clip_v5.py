@@ -181,15 +181,13 @@ def main():
     grasp_dim = 28
     scene_embed_dim = 512 
     grasp_embed_dim = 512
-    temperature = 0.1
+    temperature = 0.07
     # set training parameters
     device = th.device("cuda")
     num_epochs = 5000
     batch_size = 512
-    lr = 1e-4
-    lr_decay_factor = 0.99
-    lr_decay_step_size = 10
-    weight_decay = 1e-4
+    lr = 5e-4
+    weight_decay = 0.2
     # load data    
     data = load_h5_file("datasets/single/clip_dataset.h5")
     # build dataloaders
@@ -199,10 +197,11 @@ def main():
     # create parallel model
     yogo = nn.DataParallel(yogo)
     # load model
-    yogo.module.load("logs/yogo_clip_0.9020_v1.pth", device)
+    # yogo.module.load("logs/yogo_clip_0.9020_v5.pth", device)
     optimizer = th.optim.Adam(yogo.parameters(), lr=lr, weight_decay=weight_decay)
     # lr scheduler
     # scheduler = lr_scheduler.StepLR(optimizer, step_size=lr_decay_step_size, gamma=lr_decay_factor)
+    scheduler = lr_scheduler.CosineAnnealingLR(optimizer, T_max=num_epochs)
 
     bench = 0.5
 
@@ -225,15 +224,15 @@ def main():
         total_loss /= len(train_loader)
         accuracy = evaluate(yogo, eval_loader, device)
         # update lr
-        # scheduler.step()
+        scheduler.step()
         print(f"E {epoch+1}/{num_epochs}, L: {total_loss:.4f}, Acc: {accuracy:.4f}, T: {t_e - t_s:.2f}s")
 
         if accuracy > bench:
             # try to remove old model
-            if os.path.exists(f"./logs/yogo_clip_{bench:.4f}_v1.pth"):
-                os.remove(f"./logs/yogo_clip_{bench:.4f}_v1.pth")
+            if os.path.exists(f"./logs/yogo_clip_{bench:.4f}_v5.pth"):
+                os.remove(f"./logs/yogo_clip_{bench:.4f}_v5.pth")
             bench = accuracy
-            th.save(yogo.state_dict(), f"./logs/yogo_clip_{accuracy:.4f}_v1.pth")
+            th.save(yogo.state_dict(), f"./logs/yogo_clip_{accuracy:.4f}_v5.pth")
             print(f"\nE {epoch+1}/{num_epochs}, Acc: {accuracy:.4f}\n")
 
 if __name__ == "__main__":
