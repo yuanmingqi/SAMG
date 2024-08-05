@@ -5,7 +5,6 @@ import cv2
 import open3d as o3d
 import open3d_plus as o3dp
 import torch
-import matplotlib.pyplot as plt
 from torchvision.transforms import Compose, Resize, CenterCrop, ToTensor, Normalize
 from PIL import Image
 import matplotlib.pyplot as plt
@@ -32,42 +31,6 @@ graspnet_config = {
     'mask_thresh': 0.5
 }
 
-def get_heightmap(points, bounds, pixel_size):
-    """Get top-down (z-axis) orthographic heightmap image from 3D pointcloud.
-
-    Args:
-        points: HxWx3 float array of 3D points in world coordinates.
-        colors: HxWx3 uint8 array of values in range 0-255 aligned with points.
-        bounds: 3x2 float array of values (rows: X,Y,Z; columns: min,max) defining
-            region in 3D space to generate heightmap in world coordinates.
-        pixel_size: float defining size of each pixel in meters.
-    Returns:
-        heightmap: HxW float array of height (from lower z-bound) in meters.
-        colormap: HxWx3 uint8 array of backprojected color aligned with heightmap.
-    """
-    width = int(np.round((bounds[0, 1] - bounds[0, 0]) / pixel_size))
-    height = int(np.round((bounds[1, 1] - bounds[1, 0]) / pixel_size))
-    heightmap = np.zeros((height, width), dtype=np.float32)
-
-    # Filter out 3D points that are outside of the predefined bounds.
-    ix = (points[Ellipsis, 0] >= bounds[0, 0]) & (points[Ellipsis, 0] < bounds[0, 1])
-    iy = (points[Ellipsis, 1] >= bounds[1, 0]) & (points[Ellipsis, 1] < bounds[1, 1])
-    iz = (points[Ellipsis, 2] >= bounds[2, 0]) & (points[Ellipsis, 2] < bounds[2, 1])
-    valid = ix & iy & iz
-    points = points[valid]
-
-    # Sort 3D points by z-value, which works with array assignment to simulate
-    # z-buffering for rendering the heightmap image.
-    iz = np.argsort(points[:, -1])
-    points = points[iz]
-    px = np.int32(np.floor((points[:, 0] - bounds[0, 0]) / pixel_size))
-    py = np.int32(np.floor((points[:, 1] - bounds[1, 0]) / pixel_size))
-    px = np.clip(px, 0, width - 1)
-    py = np.clip(py, 0, height - 1)
-    heightmap[px, py] = points[:, 2] - bounds[2, 0]
-
-    return heightmap
-
 def get_heightmap(points, colors, bounds, pixel_size):
     """Get top-down (z-axis) orthographic heightmap image from 3D pointcloud.
 
@@ -85,19 +48,14 @@ def get_heightmap(points, colors, bounds, pixel_size):
     height = int(np.round((bounds[1, 1] - bounds[1, 0]) / pixel_size))
     heightmap = np.zeros((height, width), dtype=np.float32)
     colormap = np.zeros((height, width, colors.shape[-1]), dtype=np.uint8)
-    print(points.mean())
+
     # Filter out 3D points that are outside of the predefined bounds.
     ix = (points[Ellipsis, 0] >= bounds[0, 0]) & (points[Ellipsis, 0] < bounds[0, 1])
     iy = (points[Ellipsis, 1] >= bounds[1, 0]) & (points[Ellipsis, 1] < bounds[1, 1])
     iz = (points[Ellipsis, 2] >= bounds[2, 0]) & (points[Ellipsis, 2] < bounds[2, 1])
-    print(ix.sum(), iy.sum(), iz.sum(), 
-          (points[Ellipsis, 2] >= bounds[2, 0]).sum(),
-          (points[Ellipsis, 2] < bounds[2, 1]).sum()
-          )
     valid = ix & iy & iz
     points = points[valid]
     colors = colors[valid]
-    print(points.shape)
 
     # Sort 3D points by z-value, which works with array assignment to simulate
     # z-buffering for rendering the heightmap image.
@@ -186,6 +144,7 @@ def get_fuse_heightmaps(obs, configs, bounds, pixel_size):
 
 def get_true_heightmap(env):
     """Get RGB-D orthographic heightmaps and segmentation masks in simulation."""
+
     # Capture near-orthographic RGB-D images and segmentation masks.
     color, depth, segm = env.render_camera(env.oracle_cams[0])
 
@@ -441,7 +400,7 @@ def preprocess(bbox_images, bbox_positions, grasp_pose_set, n_px):
         if bbox_images[i].shape[0] >= 15 and bbox_images[i].shape[1] >= 15:
             remain_bboxes.append(bbox_images[i])  # shape = [n_obj, H, W, C]
             remain_bbox_positions.append(bbox_positions[i])
-    # print('Remaining bbox number', len(remain_bboxes))
+    print('Remaining bbox number', len(remain_bboxes))
     bboxes = None
     for remain_bbox in remain_bboxes:
         remain_bbox = Image.fromarray(remain_bbox)

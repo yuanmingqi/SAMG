@@ -13,8 +13,8 @@ from grasp_detetor import Graspnet
 
 def get_args():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--tag', type=str, default='single')
-    parser.add_argument('--num_episode', type=int, default=100)
+    parser.add_argument('--tag', type=str, default='single+')
+    parser.add_argument('--num_episode', type=int, default=9000)
     parser.add_argument('--num_obj', type=int)
     parser.add_argument('--seed', type=int, default=1234)
     return parser.parse_args()
@@ -25,6 +25,7 @@ if __name__ == "__main__":
     num_episode = args.num_episode
     seed = args.seed
     num_obj = args.num_obj
+    patch_size = 10
 
     env = Environment(gui=False)
     env.seed(seed)
@@ -77,6 +78,9 @@ if __name__ == "__main__":
 
             print(f"Episode {episode}, {num_grasp_poses} Poses, Action: {idx}, {success == 1}")
 
+            if len(success_indices) >= patch_size and len(failure_indices) >= patch_size:
+                break
+
             # restore the objects
             env.restore()
 
@@ -95,7 +99,7 @@ if __name__ == "__main__":
 
         # save data
         stamp = episode ^ int.from_bytes(os.urandom(4), byteorder="little")
-        with open(f"datasets/{tag}/episode_{stamp}_{num_obj}_objs.pkl", "wb") as f:
+        with open(f"datasets/{tag}/trajs/episode_{stamp}_{num_obj}_objs.pkl", "wb") as f:
             pickle.dump({
                 "obj_urdf_files": obj_urdf_files,
                 "obj_init_poses": obj_init_poses,

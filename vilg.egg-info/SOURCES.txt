@@ -1,4 +1,3 @@
-README.md
 setup.py
 vilg.egg-info/PKG-INFO
 vilg.egg-info/SOURCES.txt

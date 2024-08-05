@@ -28,10 +28,6 @@ if __name__ == '__main__':
     all_scenes_images = []
     all_success_grasps = []
     all_failure_grasps = []
-    patch_size = 20
-
-    # all_sg_len = []
-    # all_fg_len = []
 
     file_list = glob.glob(f"datasets/{tag}/trajs/*_objs.pkl")
     random.shuffle(file_list)
@@ -52,33 +48,13 @@ if __name__ == '__main__':
         grasp_poses = np.array(data['samples']['grasp_poses'])
         success_grasps = grasp_poses[data['samples']['success_indices']]
         failure_grasps = grasp_poses[data['samples']['failure_indices']]
-        
-        sg_len = len(success_grasps)
-        fg_len = len(failure_grasps)
 
-        if len(success_grasps) > patch_size:
-            # randomly sample patch_size successful grasps
-            success_grasps = success_grasps[np.random.choice(np.arange(sg_len), patch_size, replace=False)]
-        else:
-            num_missing = patch_size - len(success_grasps)
-            # randomly sample from failure grasps
-            for _ in range(num_missing):
-                patch = success_grasps[np.random.choice(np.arange(sg_len), 1, replace=False)]
-                success_grasps = np.concatenate([success_grasps, patch], axis=0)
-
-        if len(failure_grasps) > patch_size:
-            # randomly sample patch_size successful grasps
-            failure_grasps = failure_grasps[np.random.choice(np.arange(fg_len), patch_size, replace=False)]
-        else:
-            num_missing = patch_size - len(failure_grasps)
-            # randomly sample from failure grasps
-            for _ in range(num_missing):
-                patch = failure_grasps[np.random.choice(np.arange(fg_len), 1, replace=False)]
-                failure_grasps = np.concatenate([failure_grasps, patch], axis=0)
+        # success_grasps = statistical_features(success_grasps)
+        # failure_grasps = statistical_features(failure_grasps)
 
         all_scenes_images.append(scene_image)
-        all_success_grasps.append(success_grasps)
-        all_failure_grasps.append(failure_grasps)
+        all_success_grasps.append(success_grasps[0])
+        all_failure_grasps.append(failure_grasps[0])
 
     all_scenes_images = np.array(all_scenes_images)
     all_success_grasps = np.array(all_success_grasps)
@@ -86,7 +62,7 @@ if __name__ == '__main__':
 
     print(all_scenes_images.shape, all_success_grasps.shape, all_failure_grasps.shape)
 
-    with h5py.File(f"datasets/{tag}/clip_dataset_patch.h5", 'w') as f:
+    with h5py.File(f"datasets/{tag}/clip_single_dataset.h5", 'w') as f:
         f.create_dataset('scenes', data=all_scenes_images)
         f.create_dataset('success_grasps', data=all_success_grasps)
         f.create_dataset('failure_grasps', data=all_failure_grasps)

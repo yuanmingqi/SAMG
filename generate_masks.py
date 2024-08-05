@@ -37,7 +37,7 @@ if __name__ == '__main__':
     # get arguments
     args = get_args()
     # environment settings
-    tag = 'single'
+    tag = 'single+'
     num_obj = args.num_obj
     img_width = 224
     img_height = 224
@@ -59,25 +59,28 @@ if __name__ == '__main__':
 
     # load pickle files
     # use tqdm to show progress bar
-    for pkl_file in tqdm.tqdm(glob.glob(f"datasets/{tag}/*_{num_obj}_objs.pkl")):
-        pkl_file_name = os.path.basename(pkl_file).split('.')[0]
-        with open(pkl_file, 'rb') as f:
-            data = pickle.load(f)
-
-        rgb_image = data['samples']['rgb_image']
-        depth_image = data['samples']['depth_image']
-
-        # get masks and heightmaps
-        ## generate masks
-        masks = mask_generator.generate(rgb_image)
-        seg_mask = np.zeros_like(masks[0]['segmentation'])
-        center_points = []
-        for mask in masks:
-            if mask['area'] > int(0.25 * img_height * img_width) or mask['area'] < min_mask_area:
+    for num_obj in range(1, 4):
+        for pkl_file in tqdm.tqdm(glob.glob(f"datasets/{tag}/trajs/*{num_obj}_objs.pkl")):
+            pkl_file_name = os.path.basename(pkl_file).split('.')[0]
+            if os.path.exists(f"datasets/{tag}/masks/{pkl_file_name}_masks.npz"):
                 continue
-            seg_mask += mask['segmentation']
-            center_points.append(np.array(mask['bbox']).astype(int))
-        ## generate heightmap
-        heightmap = generate_heatmap_image((img_height, img_width), center_points, sigma=heightmap_sigma)
+            with open(pkl_file, 'rb') as f:
+                data = pickle.load(f)
 
-        np.savez(f"datasets/{tag}/{pkl_file_name}_masks.npz", seg_mask=seg_mask, heightmap=heightmap)
+            rgb_image = data['samples']['rgb_image']
+            depth_image = data['samples']['depth_image']
+
+            # get masks and heightmaps
+            ## generate masks
+            masks = mask_generator.generate(rgb_image)
+            seg_mask = np.zeros_like(masks[0]['segmentation'])
+            center_points = []
+            for mask in masks:
+                if mask['area'] > int(0.25 * img_height * img_width) or mask['area'] < min_mask_area:
+                    continue
+                seg_mask += mask['segmentation']
+                center_points.append(np.array(mask['bbox']).astype(int))
+            ## generate heightmap
+            heightmap = generate_heatmap_image((img_height, img_width), center_points, sigma=heightmap_sigma)
+
+            np.savez(f"datasets/{tag}/masks/{pkl_file_name}_masks.npz", seg_mask=seg_mask, heightmap=heightmap)

@@ -6,20 +6,6 @@ import random
 import pickle
 import numpy as np
 
-import torch
-
-def statistical_features(grasp_vectors):
-    """
-    grasp_vectors: Tensor of shape (num_grasps, grasp_dim)
-    returns: Tensor of shape (num_features * grasp_dim,)
-    """
-    mean = np.mean(grasp_vectors, axis=0)
-    max_val = np.max(grasp_vectors, axis=0)
-    min_val = np.min(grasp_vectors, axis=0)
-    std = np.std(grasp_vectors, axis=0)
-
-    return np.concatenate([mean, max_val, min_val, std])
-
 
 # preprocess the trajs
 if __name__ == '__main__':
@@ -28,6 +14,7 @@ if __name__ == '__main__':
     all_scenes_images = []
     all_success_grasps = []
     all_failure_grasps = []
+    patch_size = 10
 
     file_list = glob.glob(f"datasets/{tag}/trajs/*_objs.pkl")
     random.shuffle(file_list)
@@ -48,9 +35,23 @@ if __name__ == '__main__':
         grasp_poses = np.array(data['samples']['grasp_poses'])
         success_grasps = grasp_poses[data['samples']['success_indices']]
         failure_grasps = grasp_poses[data['samples']['failure_indices']]
+        
+        sg_len = len(success_grasps)
+        fg_len = len(failure_grasps)
 
-        success_grasps = statistical_features(success_grasps)
-        failure_grasps = statistical_features(failure_grasps)
+        if sg_len > patch_size:
+            # randomly sample patch_size successful grasps
+            success_grasps = success_grasps[np.random.choice(np.arange(sg_len), patch_size, replace=False)]
+        else:
+            # pad with zeros if there are not enough successful grasps
+            success_grasps = np.pad(success_grasps, ((0, patch_size - sg_len), (0, 0)), 'constant')
+
+        if fg_len > patch_size:
+            # randomly sample patch_size failure grasps
+            failure_grasps = failure_grasps[np.random.choice(np.arange(fg_len), patch_size, replace=False)]
+        else:
+            # pad with zeros if there are not enough failure grasps
+            failure_grasps = np.pad(failure_grasps, ((0, patch_size - fg_len), (0, 0)), 'constant')
 
         all_scenes_images.append(scene_image)
         all_success_grasps.append(success_grasps)
@@ -62,7 +63,7 @@ if __name__ == '__main__':
 
     print(all_scenes_images.shape, all_success_grasps.shape, all_failure_grasps.shape)
 
-    with h5py.File(f"datasets/{tag}/clip_dataset.h5", 'w') as f:
+    with h5py.File(f"datasets/{tag}/clip_dataset_patch10_100k.h5", 'w') as f:
         f.create_dataset('scenes', data=all_scenes_images)
         f.create_dataset('success_grasps', data=all_success_grasps)
         f.create_dataset('failure_grasps', data=all_failure_grasps)

@@ -13,7 +13,8 @@ from vit_pytorch import ViT
 from torch.optim import lr_scheduler
 from collections import OrderedDict
 
-os.environ["CUDA_VISIBLE_DEVICES"] = "2,3"
+os.environ["CUDA_VISIBLE_DEVICES"] = "2,3,6,7"
+patch_size = 10
 
 class YOGO(nn.Module):
     def __init__(self,
@@ -25,20 +26,20 @@ class YOGO(nn.Module):
                  ):
         super().__init__()
         self.temperature = temperature
-        # self.scene_encoder = ViT(image_size = scene_image_size,
-        #                          patch_size = 32,
-        #                          num_classes = scene_embed_dim,
-        #                          dim = 1024,
-        #                          depth = 6,
-        #                          heads = 16,
-        #                          mlp_dim = 2048,
-        #                          dropout = 0.1,
-        #                          emb_dropout = 0.1
-        #                          )
+        self.scene_encoder = ViT(image_size = scene_image_size,
+                                 patch_size = 32,
+                                 num_classes = scene_embed_dim,
+                                 dim = 1024,
+                                 depth = 6,
+                                 heads = 16,
+                                 mlp_dim = 2048,
+                                 dropout = 0.1,
+                                 emb_dropout = 0.1
+                                 )
 
         # resnet encoder
-        self.scene_encoder = models.resnet18()
-        self.scene_encoder.fc = nn.Identity()
+        # self.scene_encoder = models.resnet18()
+        # self.scene_encoder.fc = nn.Identity()
         # success grasp encoder
         self.grasp_encoder = nn.Sequential(
             nn.Linear(grasp_dim*3, 512),
@@ -117,20 +118,28 @@ class GraspDataset(Dataset):
         failure_grasps = th.as_tensor(failure_grasps).float()
         return scene_images, success_grasps, failure_grasps
     
-def build_loader(data, batch_size, device, num_workers=4):
-    scenes, success_grasps, failure_grasps = data['scenes'], data['success_grasps'], data['failure_grasps']
+# def build_loader(data, batch_size, device, num_workers=4):
+#     scenes, success_grasps, failure_grasps = data['scenes'], data['success_grasps'], data['failure_grasps']
 
-    # split data into evaluation and training set
-    num_data = len(data['scenes'])
-    indices = np.random.permutation(num_data)
-    split = int(0.9 * num_data)
-    train_indices, eval_indices = indices[:split], indices[split:]
-    # create dataloaders
-    train_dataset = GraspDataset(scenes[train_indices], success_grasps[train_indices], failure_grasps[train_indices], device)
-    eval_dataset = GraspDataset(scenes[eval_indices], success_grasps[eval_indices], failure_grasps[eval_indices], device)
+#     # split data into evaluation and training set
+#     num_data = len(data['scenes'])
+#     indices = np.random.permutation(num_data)
+#     split = int(0.9 * num_data)
+#     train_indices, eval_indices = indices[:split], indices[split:]
+#     # create dataloaders
+#     train_dataset = GraspDataset(scenes[train_indices], success_grasps[train_indices], failure_grasps[train_indices], device)
+#     eval_dataset = GraspDataset(scenes[eval_indices], success_grasps[eval_indices], failure_grasps[eval_indices], device)
+#     # build dataloaders
+#     train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, pin_memory=True)#, num_workers=num_workers)
+#     eval_loader = DataLoader(eval_dataset, batch_size=1024, shuffle=False, pin_memory=True)#, num_workers=num_workers)
+#     return train_loader, eval_loader
+
+def build_loader(train_data, eval_data, batch_size, device, num_workers=4):
+    train_dataset = GraspDataset(train_data['scenes'], train_data['success_grasps'], train_data['failure_grasps'], device)
+    eval_dataset = GraspDataset(eval_data['scenes'], eval_data['success_grasps'], eval_data['failure_grasps'], device)
     # build dataloaders
     train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, pin_memory=True)#, num_workers=num_workers)
-    eval_loader = DataLoader(eval_dataset, batch_size=batch_size*2, shuffle=False, pin_memory=True)#, num_workers=num_workers)
+    eval_loader = DataLoader(eval_dataset, batch_size=1024, shuffle=False, pin_memory=True)#, num_workers=num_workers)
     return train_loader, eval_loader
 
 def load_h5_file(file):
@@ -153,9 +162,14 @@ def evaluate(model, eval_loader, device):
     total = 0
     with th.no_grad():
         for scene_images, success_grasps, failure_grasps in eval_loader:
+            sg_len = success_grasps.size(0)
+            success_grasps = success_grasps.view(-1, 7)
+            failure_grasps = failure_grasps.view(-1, 7)
             scene_features, pos_features, neg_features = model(scene_images.to(device), 
                                                               success_grasps.to(device), 
                                                               failure_grasps.to(device))
+            pos_features = th.mean(pos_features.view(sg_len, patch_size, 256), dim=1)
+            neg_features = th.mean(neg_features.view(sg_len, patch_size, 256), dim=1)
             # get scores
             pos_scores = th.cosine_similarity(scene_features, pos_features)
             neg_scores = th.cosine_similarity(scene_features, neg_features)
@@ -178,10 +192,9 @@ def main():
     th.cuda.manual_seed_all(seed)
     # set model parameters
     scene_image_size = 224
-    grasp_dim = 28
-    scene_embed_dim = 512 
-    grasp_embed_dim = 512
-    temperature = 0.07
+    grasp_dim = 7
+    scene_embed_dim = grasp_embed_dim = 256
+    temperature = 0.05
     # set training parameters
     device = th.device("cuda")
     num_epochs = 5000
@@ -189,19 +202,20 @@ def main():
     lr = 5e-4
     weight_decay = 0.2
     # load data    
-    data = load_h5_file("datasets/single/clip_dataset.h5")
+    train_data = load_h5_file(f"datasets/single/clip_dataset_patch{patch_size}_100k_train.h5")
+    eval_data = load_h5_file(f"datasets/single/clip_dataset_patch{patch_size}_100k_eval.h5")
     # build dataloaders
-    train_loader, eval_loader = build_loader(data, batch_size, device)
+    train_loader, eval_loader = build_loader(train_data, eval_data, batch_size, device)
     # build model
     yogo = YOGO(scene_image_size, grasp_dim, scene_embed_dim, grasp_embed_dim, temperature).to(device)
     # create parallel model
     yogo = nn.DataParallel(yogo)
     # load model
-    # yogo.module.load("logs/yogo_clip_0.9020_v5.pth", device)
-    optimizer = th.optim.Adam(yogo.parameters(), lr=lr, weight_decay=weight_decay)
+    # yogo.module.load("logs/yogo_clip_0.9254_v4.pth", device)
+    optimizer = th.optim.Adam(yogo.parameters(), lr=lr)#, weight_decay=weight_decay)
     # lr scheduler
-    # scheduler = lr_scheduler.StepLR(optimizer, step_size=lr_decay_step_size, gamma=lr_decay_factor)
-    scheduler = lr_scheduler.CosineAnnealingLR(optimizer, T_max=num_epochs)
+    # scheduler = lr_scheduler.CosineAnnealingLR(optimizer, T_max=num_epochs)
+    scheduler = lr_scheduler.StepLR(optimizer, step_size=100, gamma=0.99)
 
     bench = 0.5
 
@@ -210,30 +224,37 @@ def main():
         total_loss = th.tensor(0.0).to(device)
         t_s = time.perf_counter()
         for scene_images, success_grasps, failure_grasps in train_loader:
+            sg_len = success_grasps.size(0)
             # forward pass
             optimizer.zero_grad()
+            # print(scene_images.size(), success_grasps.size(), failure_grasps.size())
+            success_grasps = success_grasps.view(-1, grasp_dim)
+            failure_grasps = failure_grasps.view(-1, grasp_dim)
             scene_features, pos_features, neg_features = yogo(scene_images.to(device), 
                                                               success_grasps.to(device), 
                                                               failure_grasps.to(device))
+            # print(scene_features.size(), pos_features.size(), neg_features.size())
+            pos_features = th.mean(pos_features.view(sg_len, patch_size, grasp_embed_dim), dim=1)
+            neg_features = th.mean(neg_features.view(sg_len, patch_size, grasp_embed_dim), dim=1)
             loss = yogo.module.sym_clip_loss(scene_features, pos_features, neg_features)
             loss.backward()
             optimizer.step()
             
             total_loss += loss
-        t_e = time.perf_counter()
         total_loss /= len(train_loader)
         accuracy = evaluate(yogo, eval_loader, device)
+        t_e = time.perf_counter()
         # update lr
         scheduler.step()
         print(f"E {epoch+1}/{num_epochs}, L: {total_loss:.4f}, Acc: {accuracy:.4f}, T: {t_e - t_s:.2f}s")
 
         if accuracy > bench:
             # try to remove old model
-            if os.path.exists(f"./logs/yogo_clip_{bench:.4f}_v5.pth"):
-                os.remove(f"./logs/yogo_clip_{bench:.4f}_v5.pth")
+            if os.path.exists(f"./logs/yogo_clip_vit_{bench:.4f}_v4.pth"):
+                os.remove(f"./logs/yogo_clip_vit_{bench:.4f}_v4.pth")
             bench = accuracy
-            th.save(yogo.state_dict(), f"./logs/yogo_clip_{accuracy:.4f}_v5.pth")
-            print(f"\nE {epoch+1}/{num_epochs}, Acc: {accuracy:.4f}\n")
+            th.save(yogo.state_dict(), f"./logs/yogo_clip_vit_{bench:.4f}_v4.pth")
+
 
 if __name__ == "__main__":
     main()
